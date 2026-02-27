@@ -96,44 +96,44 @@ Level 5 demonstrates that structured reasoning with deliberate safety margins ou
 This project implements the SCM reasoning protocol as six deterministic MCP tools:
 
 ```
-                          ┌──────────────────┐
+                          ┌───────────────────┐
                           │ bullwhip_diagnose │  Diagnostic Layer
-                          │ Scans decision   │  (SCM Steps 1, 6, 7)
+                          │ Scans decision    │  (SCM Steps 1, 6, 7)
                           │ history for       │  Detects active amplification
                           │ amplification     │  Recommends intervention tool
-                          └──────────────────┘
+                          └───────────────────┘
 
 Raw Input
     │
     ▼
-┌─────────────────┐
+┌──────────────────┐
 │  anchor_classify │  Signal Classification (SCM Steps 1-2)
 │  Action / Obs /  │  Noise isolation, confidence scoring
 │  Ambiguous       │  → blocks ambiguous signals
-└────────┬────────┘
+└────────┬─────────┘
          │ (if Action)
          ▼
-┌─────────────────┐
+┌──────────────────┐
 │  logic_sequence  │  Reasoning Enforcement (SCM Steps 3-4)
 │  Context →       │  4-step fixed sequence
 │  Retrieval →     │  Historical consistency check
 │  Analysis →      │  → blocks on step-skip
 │  Action          │
-└────────┬────────┘
+└────────┬─────────┘
          │ (if pass)
          ▼
-┌─────────────────┐
+┌──────────────────┐
 │  mesh_simulate   │  Impact Simulation (SCM Steps 5-7)
 │  Risk 0-100      │  Maps all downstream system nodes
 │  Horizon analysis│  → adjusts action if risk > threshold
-└────────┬────────┘
+└────────┬─────────┘
          │ (if safe)
          ▼
-┌─────────────────┐
+┌──────────────────┐
 │  gate_validate   │  Governance Validation (SCM Step 8)
 │  Principles check│  Keyword matching (morphology-aware)
 │  Audit trail     │  → blocks/escalates on violation
-└────────┬────────┘
+└────────┬─────────┘
          │
          ▼
     Final Decision
