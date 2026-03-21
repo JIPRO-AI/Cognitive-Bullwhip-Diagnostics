@@ -25,7 +25,11 @@
     "causal-mesh",
     "principle-gate",
     "ai-agent",
-    "reasoning-middleware"
+    "reasoning-middleware",
+    "deterministic-middleware",
+    "reasoning-validation",
+    "agent-governance",
+    "decision-diagnostics"
   ],
   "author": "JIPRO-AI",
   "license": "MIT",
@@ -47,7 +51,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnotics"
+    "url": "https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics"
   },
-  "homepage": "https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnotics"
+  "homepage": "https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics"
 }

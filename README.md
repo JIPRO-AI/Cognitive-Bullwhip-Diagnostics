@@ -1,163 +1,307 @@
 # Cognitive Bullwhip Diagnostics
 
-**Deterministic middleware for detecting and correcting reasoning failures in LLM-based agent systems.**
+Deterministic MCP middleware for diagnosing and containing reasoning amplification in AI agent workflows.
 
+[![CI](https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml/badge.svg)](https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml)
 [![MCP Compatible](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io/)
 [![Tests](https://img.shields.io/badge/tests-58%20passing-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
-## The Problem
+## Status
 
-In physical supply chains, the **Bullwhip Effect** describes how small demand fluctuations at the retail level amplify into massive production swings upstream — a 5% change in consumer demand can cause a 40% production variance at the manufacturer (Lee, Padmanabhan & Whang, 1997; Forrester, 1961).
+| | |
+|---|---|
+| **Maturity** | Alpha — actively developed, API may change |
+| **Engine** | 100% deterministic — no LLM calls inside any tool |
+| **Use case** | Structured agent workflows, decision pipelines, tool-using systems |
+| **Not for** | General chat quality improvement, raw model fine-tuning, casual one-shot prompting |
 
-The same amplification dynamic exists inside **multi-layer AI agent systems**. A minor misclassification at the input layer propagates through reasoning, execution, and output — compounding at each stage. By the time the failure is visible, the root cause is buried 3-4 layers back.
+**Quick proof:**
 
-This project implements the diagnostic and intervention layer of the **Structured Cognition Model (SCM)** — a six-level cognitive maturity framework paired with an eight-step reasoning protocol, originally developed to reduce interpretation variance in operational environments (Ji, 2026). When AI systems began exhibiting the same interpretation flaws as early-stage human cognition, the model evolved into an enforceable reasoning layer for enterprise AI.
-
----
-
-## Theoretical Foundation
-
-### The Cognitive Bullwhip Effect
-
-The **Cognitive Bullwhip Effect** (Ji, 2026) extends the supply chain amplification model to cognitive decision pipelines. Just as minor demand fluctuations cause massive upstream volatility in physical supply chains, minor differences in signal interpretation cause massive variance in agent decision-making.
-
-> *"Processes can be standardized, but if the reasoning behind those processes remains unstandardized, variance simply migrates from execution to interpretation."*
-> — SCM White Paper v2.4
-
-**The mechanism**: In a multi-agent pipeline, a single ambiguous input (e.g., a 0.3% price movement) is interpreted by the first agent. If that agent lacks structured signal classification, it may treat noise as signal. The next agent amplifies the misclassification through its own reasoning. By the execution layer, a trivial fluctuation has become a high-confidence trade, a database write, or an irreversible API call.
-
-| Layer | Supply Chain Analog | Agent System | Cognitive Failure Mode |
-|-------|-------------------|--------------|----------------------|
-| **Input** | Retail demand signal | Raw prompt / event / data | Noise treated as signal (Levels 1-2) |
-| **Reasoning** | Distributor forecasting | Context retrieval + analysis | Step-skipping, inconsistent logic (Level 2-3) |
-| **Execution** | Manufacturer production | API calls, DB writes, tool use | Local optimization without global impact (Level 3-4) |
-| **Output** | Supplier raw materials | Final decision / response | Governance violations, drift (Level 4-5) |
-
-**Amplification ratio** = output variance / input variance at each layer. A ratio > 3.0x at any single layer indicates active bullwhip.
-
-### The Structured Cognition Model (SCM)
-
-SCM defines six levels of cognitive maturity observed across 135+ operational cycles:
-
-| Level | Label | Reasoning Mode | Decision Variance | Agent Analog |
-|-------|-------|---------------|-------------------|--------------|
-| 1 | **Responder** | Reactive — single metric, no context | High | Raw LLM with no guardrails |
-| 2 | **Actor** | Adds basic checks before reacting | High | LLM with simple prompts |
-| 3 | **Designer** | Builds repeatable analysis templates | Moderate | Agent with structured prompts |
-| 4 | **Operator** | Runs structured logic every cycle | Low | Agent with enforced protocol |
-| 5 | **Architect** | Cross-functional causality, system-level | Very Low | Agent with full SCM pipeline |
-| 6 | **Shaper** | Defines rules the system must follow | Minimal | Human governance layer |
-
-The model maps directly to the **eight-step reasoning protocol**:
-
-```
-1. Signal Isolation      → What specifically changed?
-2. Context Definition    → What type of data? What environment?
-3. Structural Breakdown  → What dependencies exist?
-4. Priority Determination → What matters most right now?
-5. Risk Horizon Scan     → What's the relevant timeframe?
-6. Pattern Recognition   → Signal or noise?
-7. System Interpretation → How do pieces connect?
-8. Principled Conclusion → Does it align with governance constraints?
-```
-
-**Sequence is non-negotiable**: Signal precedes context; context precedes structure; priority precedes risk; risk precedes pattern; pattern precedes system interpretation; principles are applied last.
-
-### Four Pattern Types
-
-When amplification is detected, the origin layer determines the pattern type and prescribed intervention:
-
-| Pattern | Origin Layer | Mechanism | SCM Level Gap | Intervention |
-|---------|-------------|-----------|--------------|-------------|
-| **Noise Sensitivity** | Input | Agent reacts to every fluctuation as a command | L1-2 behavior at input | `anchor_classify` |
-| **Reasoning Drift** | Reasoning | Non-deterministic logic produces different outputs per run | L2-3 step-skipping | `logic_sequence` |
-| **Myopic Optimization** | Execution | Local task completion breaks downstream systems | L3-4 missing system view | `mesh_simulate` |
-| **Misaligned Autonomy** | Output | Decisions violate governance rules without audit trail | L4-5 missing L6 principles | `gate_validate` |
-
-### Simulation Evidence
-
-Monte Carlo simulation (320 runs, 120 SKUs, 26 weeks) from the SCM White Paper v2.4 demonstrates the cost of cognitive variance:
-
-| Cognitive Policy | Mean Total Cost | Mean Stockout Units | Interpretation |
-|-----------------|----------------|--------------------|----|
-| **Level 1 (Reactive)** | $1.19M | 1,688 | Overreacts to noise, amplifies variance |
-| **Level 3 (Structured)** | $0.29M | 2,649 | Reduces cost 75%, tolerates more stockouts |
-| **Level 5 (Systemic)** | $0.34M | 318 | 81% fewer stockouts vs L1, deliberate robustness |
-
-Level 5 demonstrates that structured reasoning with deliberate safety margins outperforms both reactive and template-only approaches under operational stress.
+- 6 MCP tools — signal classification, reasoning enforcement, impact simulation, governance gating
+- 58 end-to-end tests — all deterministic, all passing
+- 1 real-world case study — Kalshi crypto trading bot (-80% drawdown diagnosed)
+- Deterministic outputs — same input always produces same output, no stochastic variance
 
 ---
 
-## Architecture
+## What It Does
 
-This project implements the SCM reasoning protocol as six deterministic MCP tools:
+- Diagnoses amplification risk from input to downstream action
+- Enforces reasoning order (context → retrieval → analysis → action)
+- Classifies ambiguous inputs before they enter execution
+- Simulates downstream blast radius across connected systems
+- Validates outputs against custom governance principles
+- Supports deterministic auto-gating pipelines with per-stage blocking
+
+## What It Does NOT Do
+
+- Improve the base model itself
+- Replace retrieval or grounding systems
+- Fine-tune LLM weights
+- Guarantee truthfulness in all open-ended tasks
+- Act as a generic chatbot guardrail for every scenario
+
+---
+
+## How It Works
 
 ```
-                          ┌───────────────────┐
-                          │ bullwhip_diagnose │  Diagnostic Layer
-                          │ Scans decision    │  (SCM Steps 1, 6, 7)
-                          │ history for       │  Detects active amplification
-                          │ amplification     │  Recommends intervention tool
-                          └───────────────────┘
-
 Raw Input
     │
     ▼
 ┌──────────────────┐
-│  anchor_classify │  Signal Classification (SCM Steps 1-2)
-│  Action / Obs /  │  Noise isolation, confidence scoring
-│  Ambiguous       │  → blocks ambiguous signals
+│  anchor_classify  │  Signal Classification
+│  Action / Obs /   │  Noise isolation, confidence scoring
+│  Ambiguous        │  → blocks ambiguous signals
 └────────┬─────────┘
          │ (if Action)
          ▼
 ┌──────────────────┐
-│  logic_sequence  │  Reasoning Enforcement (SCM Steps 3-4)
-│  Context →       │  4-step fixed sequence
-│  Retrieval →     │  Historical consistency check
-│  Analysis →      │  → blocks on step-skip
-│  Action          │
+│  logic_sequence   │  Reasoning Enforcement
+│  Context →        │  4-step fixed sequence
+│  Retrieval →      │  Historical consistency check
+│  Analysis →       │  → blocks on step-skip
+│  Action           │
 └────────┬─────────┘
          │ (if pass)
          ▼
 ┌──────────────────┐
-│  mesh_simulate   │  Impact Simulation (SCM Steps 5-7)
-│  Risk 0-100      │  Maps all downstream system nodes
-│  Horizon analysis│  → adjusts action if risk > threshold
+│  mesh_simulate    │  Impact Simulation
+│  Risk 0-100       │  Maps all downstream system nodes
+│  Horizon analysis │  → adjusts action if risk > threshold
 └────────┬─────────┘
          │ (if safe)
          ▼
 ┌──────────────────┐
-│  gate_validate   │  Governance Validation (SCM Step 8)
-│  Principles check│  Keyword matching (morphology-aware)
-│  Audit trail     │  → blocks/escalates on violation
+│  gate_validate    │  Governance Validation
+│  Principles check │  Keyword matching (morphology-aware)
+│  Audit trail      │  → blocks/escalates on violation
 └────────┬─────────┘
          │
          ▼
-    Final Decision
+    Final Decision: execute / escalate / block
 ```
 
-The **sc_pipeline** tool chains all four stages with automatic gating — if any stage returns `block` or `flag`, downstream stages are skipped and the blocking reason is propagated.
+`bullwhip_diagnose` operates separately as a **historical diagnostic** — it scans decision logs for amplification patterns and recommends which pipeline tool to deploy.
 
-## Tools
+`sc_pipeline` chains all four core tools with **automatic gating** — if any stage returns `block` or `flag`, downstream stages are skipped and the blocking reason is propagated.
 
-| Tool | SCM Steps | Function | Output |
-|------|-----------|----------|--------|
-| `bullwhip_diagnose` | 1, 6, 7 | Scans decision history for amplification across 4 layers | Severity 0-100, amplification map, pattern type, recommended fix |
-| `anchor_classify` | 1-2 | Classifies input as Action / Observation / Ambiguous | Signal type, confidence score, noise isolation log |
-| `logic_sequence` | 3-4 | Enforces Context → Retrieval → Analysis → Action | Completed steps, risk horizon, historical consistency |
-| `mesh_simulate` | 5-7 | Simulates downstream impact across connected nodes | Risk score 0-100, impact map, adjusted recommendation |
-| `gate_validate` | 8 | Validates against governance rules | Approve / Escalate / Block + timestamped audit trail |
-| `sc_pipeline` | 1-8 | Chains all 4 core tools with auto-gating | Per-stage results, final decision, blocking reason |
+---
 
-### Design Principles
+## Tool Examples
 
-- **100% Deterministic**: All scoring uses pure threshold-based analysis — no LLM calls inside any tool. This ensures Level 4 (Operator) consistency: same input always produces same output.
-- **Dual-block Output**: Each tool returns (1) human-readable diagnostic report + (2) structured JSON — matching SCM's requirement for both auditability and programmatic use.
-- **Auto-gating Pipeline**: If any stage blocks, downstream stages are skipped. This enforces the SCM sequence dependency: signal must be classified before reasoning can proceed.
-- **Morphology-aware Matching**: Keyword detection catches inflected forms (e.g., "deletion" from "delete", "overwritten" from "overwrite") — critical for governance validation in natural language contexts.
+### `anchor_classify` — Signal Classification
+
+```json
+// Input
+{
+  "raw_input": "I think we should maybe purge the user database?",
+  "input_type": "prompt",
+  "context_window": []
+}
+
+// Output
+{
+  "signal_type": "ambiguous",
+  "confidence": 0.1,
+  "status": "flag",
+  "noise_detected": [
+    "hedging language: 'maybe'",
+    "hedging language: 'i think'",
+    "uncertainty marker: '?'",
+    "irreversible action keyword combined with uncertainty"
+  ],
+  "isolated_signal": "purge the user database",
+  "payload": { "proceed": false, "reason": "Signal confidence below threshold" }
+}
+```
+
+### `logic_sequence` — Reasoning Enforcement
+
+```json
+// Input
+{
+  "isolated_signal": "Update pricing for SKU-447 by +8%",
+  "input_type": "prompt",
+  "context_window": [
+    "Current price: $45.00",
+    "Competitor raised by 5% last week",
+    "History: SKU-447 repriced +6% in Oct with positive outcome"
+  ]
+}
+
+// Output
+{
+  "status": "pass",
+  "confidence": 1.0,
+  "risk_horizon": "short_term",
+  "sequence_completed": ["context", "retrieval", "analysis", "action"],
+  "sequence_skipped": [],
+  "recommendation": "Proceed with +8% price update...",
+  "payload": { "action_ready": true, "action_type": "modification" }
+}
+```
+
+### `mesh_simulate` — Impact Simulation
+
+```json
+// Input
+{
+  "recommendation": "delete all expired user accounts from database, batch process all 50000 records",
+  "action_type": "deletion",
+  "risk_horizon": "structural",
+  "context_window": [
+    "Production database",
+    "Agent B depends on user_accounts table",
+    "Redis cache for user sessions"
+  ]
+}
+
+// Output
+{
+  "status": "block",
+  "risk_score": 100,
+  "impact_map": {
+    "direct_effect": "batch deletion of 50000 records in production database",
+    "risk_nodes": ["database", "cache_layer", "agent_dependency"],
+    "secondary_effects": [
+      "Agent B dependency on user_accounts table may break",
+      "Redis cache invalidation required for user sessions"
+    ]
+  },
+  "payload": { "safe_to_proceed": false, "requires_modification": true }
+}
+```
+
+### `gate_validate` — Governance Validation
+
+```json
+// Input
+{
+  "recommendation": "Schedule account deletion for user #789",
+  "risk_score": 40,
+  "confidence": 0.90,
+  "action_type": "deletion",
+  "principles": [
+    {
+      "id": "P005",
+      "rule": "No deletions without manager approval",
+      "threshold": "contains delete",
+      "on_violation": "escalate"
+    }
+  ]
+}
+
+// Output
+{
+  "final_decision": "escalate",
+  "status": "escalated",
+  "violations": [{
+    "principle_id": "P005",
+    "rule": "No deletions without manager approval",
+    "triggered_by": "recommendation contains \"deletion\" (matched keyword: \"delete\")"
+  }],
+  "audit_trail": {
+    "decision_summary": "Escalated due to principle violation",
+    "decision_authority": "principle_gate",
+    "principles_passed": [],
+    "principles_violated": ["P005"],
+    "decision_timestamp": "2026-02-27T..."
+  }
+}
+```
+
+### `bullwhip_diagnose` — Historical Diagnostic
+
+```json
+// Input: decision log with variance scores
+// Output
+{
+  "bullwhip_active": true,
+  "severity": "critical",
+  "severity_score": 100,
+  "pattern_type": "noise_sensitivity",
+  "amplification_map": {
+    "origin_layer": "input",
+    "amplification_chain": [
+      { "layer": "input",     "input_variance": 0.021, "output_variance": 0.193, "amplification_ratio": 18.75 },
+      { "layer": "reasoning", "input_variance": 0.496, "output_variance": 1.474, "amplification_ratio": 5.33 },
+      { "layer": "execution", "input_variance": 0.353, "output_variance": 2.650, "amplification_ratio": 7.62 }
+    ]
+  },
+  "recommended_intervention": {
+    "primary_skill": "signal-anchor",
+    "urgency": "immediate"
+  }
+}
+```
+
+### `sc_pipeline` — Full Auto-Gating Pipeline
+
+```json
+// Input
+{
+  "raw_input": "maybe we should perhaps delete everything? not sure though",
+  "input_type": "prompt",
+  "context_window": []
+}
+
+// Output
+{
+  "pipeline_status": "flag",
+  "stopped_at": "signal_anchor",
+  "confidence": 0.1,
+  "stages_completed": ["signal_anchor"],
+  "stages_skipped": ["logic_stack", "causal_mesh", "principle_gate"],
+  "summary": "Pipeline halted at signal_anchor: ambiguous input with low confidence"
+}
+```
+
+---
+
+## Test Matrix
+
+| Tool | Tests | Focus |
+|------|------:|-------|
+| `bullwhip_diagnose` | 13 | Empty/clean/amplified logs, severity scoring, pattern detection, trace generation |
+| `anchor_classify` | 11 | Ambiguous signals, clear actions, spike detection, dangerous + uncertain combos |
+| `logic_sequence` | 8 | Full/missing context, structural risk, step completion, confidence scoring |
+| `mesh_simulate` | 8 | Low-risk queries, batch deletions, API calls, risk node detection |
+| `gate_validate` | 12 | Principle passing, violation escalation, auto-block, low confidence, morphology matching |
+| `sc_pipeline` | 6 | Clean pass-through, ambiguous stop, gate escalation, multi-stage gating |
+| **Total** | **58** | **All deterministic — same input always produces same output** |
+
+---
+
+## Why "Cognitive Bullwhip"?
+
+In physical supply chains, the **Bullwhip Effect** describes how a 5% change in consumer demand can cause a 40% production variance upstream (Lee, Padmanabhan & Whang, 1997).
+
+The same amplification exists in AI agent systems. A minor misclassification at the input layer propagates through reasoning, execution, and output — compounding at each stage. By the time the failure is visible, the root cause is buried 3-4 layers back.
+
+This package is the **deterministic containment layer** for that amplification.
+
+> This package operationalizes the Structured Cognition Model (SCM) by enforcing ordered reasoning, separating observation from action, and validating outputs before downstream execution. It is designed not to replace model reasoning, but to create a safer human-AI operating layer around it.
+
+---
+
+## Best Fit
+
+**Good for:**
+- Tool-using AI agents that execute real-world actions
+- Decision-support systems where errors compound
+- Workflow orchestration layers (multi-agent pipelines)
+- Retrieval → analysis → action pipelines
+- High-cost operational contexts (trading, infrastructure, production systems)
+
+**Less fit:**
+- Pure creative writing
+- Open-ended social chat
+- Direct model fine-tuning workflows
+- Casual one-shot prompting without downstream actions
 
 ---
 
@@ -184,56 +328,74 @@ npx @agdp/structured-cognition
 
 ---
 
-## Case Study: Kalshi Crypto Trading Bot
+## Design Principles
 
-A 4-agent trading pipeline operating on Kalshi 15-minute binary crypto contracts experienced an 80% capital loss ($2,000 → $396) despite maintaining a 56% win rate. The loss severity consistently exceeded win magnitude — the system was profitable in frequency but destructive in amplitude.
+- **100% Deterministic**: All scoring uses pure threshold-based analysis — no LLM calls inside any tool. Same input always produces same output.
+- **Dual-block Output**: Each tool returns (1) human-readable diagnostic report + (2) structured JSON — for both auditability and programmatic use.
+- **Auto-gating Pipeline**: If any stage blocks, downstream stages are skipped. Signal must be classified before reasoning can proceed.
+- **Morphology-aware Matching**: Keyword detection catches inflected forms (e.g., "deletion" from "delete", "overwritten" from "overwrite") — critical for governance validation in natural language contexts.
 
-This is a textbook Cognitive Bullwhip Effect: the input layer was operating at Level 1-2 (reactive), treating minor price fluctuations as actionable signals, which amplified through Level 3 reasoning (no consistency checks) into Level 4 execution (trades executed without impact simulation).
+---
 
-**Diagnosis** (`bullwhip_diagnose`):
+## Theoretical Foundation
 
-```
-COGNITIVE BULLWHIP DIAGNOSTIC
+### The Cognitive Bullwhip Effect
 
-Status:      ACTIVE (Severity 100/100, immediate)
-Origin:      input — noise_sensitivity
-Ratio:       18.75x amplification at input layer
+The Cognitive Bullwhip Effect (Ji, 2026) extends the supply chain amplification model to cognitive decision pipelines.
 
-Amplification Chain:
-  input:     0.021 → 0.193  (18.75x)
-  reasoning: 0.496 → 1.474  ( 5.33x)
-  execution: 0.353 → 2.650  ( 7.62x)
-```
+| Layer | Supply Chain Analog | Agent System | Cognitive Failure Mode |
+|-------|-------------------|--------------|----------------------|
+| **Input** | Retail demand signal | Raw prompt / event / data | Noise treated as signal (Levels 1-2) |
+| **Reasoning** | Distributor forecasting | Context retrieval + analysis | Step-skipping, inconsistent logic (Level 2-3) |
+| **Execution** | Manufacturer production | API calls, DB writes, tool use | Local optimization without global impact (Level 3-4) |
+| **Output** | Supplier raw materials | Final decision / response | Governance violations, drift (Level 4-5) |
 
-**Finding**: 18.75x amplification at input confirms Level 1 reactive cognition — the bot treated ±0.3% market noise as high-confidence trade signals.
+**Amplification ratio** = output variance / input variance at each layer. A ratio > 3.0x at any single layer indicates active bullwhip.
 
-**Prescribed intervention**: `anchor_classify` to enforce signal classification before downstream execution.
+### The Structured Cognition Model (SCM)
 
-Full case study: [`test/kalshi-case-study.ts`](test/kalshi-case-study.ts)
+SCM defines six levels of cognitive maturity observed across 135+ operational cycles:
+
+| Level | Label | Reasoning Mode | Agent Analog |
+|-------|-------|---------------|--------------|
+| 1 | **Responder** | Reactive — single metric, no context | Raw LLM with no guardrails |
+| 2 | **Actor** | Adds basic checks before reacting | LLM with simple prompts |
+| 3 | **Designer** | Builds repeatable analysis templates | Agent with structured prompts |
+| 4 | **Operator** | Runs structured logic every cycle | Agent with enforced protocol |
+| 5 | **Architect** | Cross-functional causality, system-level | Agent with full SCM pipeline |
+| 6 | **Shaper** | Defines rules the system must follow | Human governance layer |
+
+### Four Pattern Types
+
+| Pattern | Origin | Mechanism | Intervention |
+|---------|--------|-----------|-------------|
+| **Noise Sensitivity** | Input | Reacts to every fluctuation as command | `anchor_classify` |
+| **Reasoning Drift** | Reasoning | Non-deterministic logic per run | `logic_sequence` |
+| **Myopic Optimization** | Execution | Local task breaks downstream | `mesh_simulate` |
+| **Misaligned Autonomy** | Output | Decisions violate governance rules | `gate_validate` |
+
+---
+
+## Case Study
+
+See [Kalshi Crypto Trading Bot — Full Diagnosis](docs/case-studies/kalshi-bullwhip.md) for a detailed walkthrough of how the Cognitive Bullwhip Effect caused an 80% capital loss despite a 56% win rate, and how each tool in this package would have caught and contained the failure.
 
 ---
 
 ## Testing
 
 ```bash
+npm install
 npm test     # 58 E2E tests across all 6 tools
 ```
-
-Coverage includes:
-- Empty, clean, and amplified decision logs (`bullwhip_diagnose`)
-- Ambiguous, clear, spike, and dangerous inputs (`anchor_classify`)
-- Full context, missing context, and structural risk scenarios (`logic_sequence`)
-- Low risk, batch operations, and API calls (`mesh_simulate`)
-- Pass, escalate, block, low confidence, and morphology matching (`gate_validate`)
-- Clean pass, ambiguous stop, and gate escalation pipelines (`sc_pipeline`)
 
 ---
 
 ## Development
 
 ```bash
-git clone https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnotics.git
-cd Cognitive-Bullwhip-Diagnotics
+git clone https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics.git
+cd Cognitive-Bullwhip-Diagnostics
 npm install
 npm run dev     # Development mode (tsx)
 npm run build   # TypeScript compile
