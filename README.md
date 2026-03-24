@@ -60,25 +60,25 @@ Raw Input
          │ (if Action)
          ▼
 ┌──────────────────┐
-│  logic_sequence   │  Reasoning Enforcement
-│  Context →        │  4-step fixed sequence
-│  Retrieval →      │  Historical consistency check
-│  Analysis →       │  → blocks on step-skip
-│  Action           │
+│  logic_sequence  │  Reasoning Enforcement
+│  Context →       │  4-step fixed sequence
+│  Retrieval →     │  Historical consistency check
+│  Analysis →      │  → blocks on step-skip
+│  Action          │
 └────────┬─────────┘
          │ (if pass)
          ▼
 ┌──────────────────┐
-│  mesh_simulate    │  Impact Simulation
-│  Risk 0-100       │  Maps all downstream system nodes
-│  Horizon analysis │  → adjusts action if risk > threshold
+│  mesh_simulate   │  Impact Simulation
+│  Risk 0-100      │  Maps all downstream system nodes
+│  Horizon analysis│  → adjusts action if risk > threshold
 └────────┬─────────┘
          │ (if safe)
          ▼
 ┌──────────────────┐
-│  gate_validate    │  Governance Validation
-│  Principles check │  Keyword matching (morphology-aware)
-│  Audit trail      │  → blocks/escalates on violation
+│  gate_validate   │  Governance Validation
+│  Principles check│  Keyword matching (morphology-aware)
+│  Audit trail     │  → blocks/escalates on violation
 └────────┬─────────┘
          │
          ▼
