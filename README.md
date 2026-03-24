@@ -53,9 +53,9 @@ Raw Input
     │
     ▼
 ┌──────────────────┐
-│  anchor_classify  │  Signal Classification
-│  Action / Obs /   │  Noise isolation, confidence scoring
-│  Ambiguous        │  → blocks ambiguous signals
+│  anchor_classify │  Signal Classification
+│  Action / Obs /  │  Noise isolation, confidence scoring
+│  Ambiguous       │  → blocks ambiguous signals
 └────────┬─────────┘
          │ (if Action)
          ▼
