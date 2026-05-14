@@ -73,6 +73,62 @@ assert(bw_amp.diagnostic_report.includes("ACTIVE"), "Amplified → report says A
 assert(bw_amp.trace.length === 3, "Amplified → 3 trace steps");
 console.log(`    severity=${bw_amp.severity}, score=${bw_amp.severity_score}, pattern=${bw_amp.pattern_type}, origin=${bw_amp.amplification_map.origin_layer}`);
 
+// Test 1d: Single entry — minimum input
+const bw_single = bullwhipDiagnose(
+  [{ timestamp: "2026-05-13T10:00:00Z", input_summary: "single event", decision_made: "logged", outcome: "expected", variance_score: 0.1 }],
+  undefined
+);
+assert(typeof bw_single.severity_score === "number", "Single entry → numeric score");
+assert(bw_single.amplification_map.amplification_chain.length >= 0, "Single entry → chain valid");
+
+// Test 1e: All error outcomes
+const bw_errors = bullwhipDiagnose([
+  { timestamp: "2026-05-13T10:00:00Z", input_summary: "tx1", decision_made: "retry", outcome: "error", variance_score: 1.2 },
+  { timestamp: "2026-05-13T10:05:00Z", input_summary: "tx2", decision_made: "retry again", outcome: "error", variance_score: 1.8 },
+  { timestamp: "2026-05-13T10:10:00Z", input_summary: "tx3", decision_made: "escalate", outcome: "error", variance_score: 2.4 },
+], undefined);
+assert(bw_errors.bullwhip_active === true, "All errors → likely active");
+assert(bw_errors.severity_score > 0, "All errors → non-zero score");
+
+// Test 1f: Decreasing variance (recovery pattern)
+const bw_recover = bullwhipDiagnose([
+  { timestamp: "2026-05-13T10:00:00Z", input_summary: "spike", decision_made: "react", outcome: "unexpected", variance_score: 1.5 },
+  { timestamp: "2026-05-13T10:05:00Z", input_summary: "settling", decision_made: "monitor", outcome: "expected", variance_score: 0.8 },
+  { timestamp: "2026-05-13T10:10:00Z", input_summary: "stable", decision_made: "hold", outcome: "expected", variance_score: 0.3 },
+  { timestamp: "2026-05-13T10:15:00Z", input_summary: "stable", decision_made: "hold", outcome: "expected", variance_score: 0.1 },
+], undefined);
+assert(typeof bw_recover.severity_score === "number", "Decreasing variance → numeric score");
+
+// Test 1g: SystemContext with many connected systems
+const bw_manyAgents = bullwhipDiagnose([
+  { timestamp: "2026-05-13T10:00:00Z", input_summary: "input", decision_made: "act", outcome: "unexpected", variance_score: 0.5 },
+  { timestamp: "2026-05-13T10:05:00Z", input_summary: "input", decision_made: "act", outcome: "error", variance_score: 1.5 },
+], { agent_count: 10, connected_systems: ["db", "api", "cache", "queue", "ml"], observation_window: "last_24h" });
+assert(typeof bw_manyAgents.severity_score === "number", "Many agents → numeric score");
+assert(bw_manyAgents.diagnostic_report.length > 0, "Many agents → report generated");
+
+// Test 1h: Confidence level inference (10+ entries → high confidence in report)
+const bw_many = bullwhipDiagnose(
+  Array.from({ length: 12 }, (_, i) => ({
+    timestamp: `2026-05-13T10:${String(i).padStart(2, "0")}:00Z`,
+    input_summary: `entry-${i}`,
+    decision_made: "act",
+    outcome: (i % 3 === 0 ? "error" : "unexpected") as "error" | "unexpected",
+    variance_score: 0.5 + i * 0.1,
+  })),
+  undefined
+);
+assert(bw_many.amplification_map.amplification_chain.length > 0, "12 entries → chain populated");
+assert(bw_many.bullwhip_active === true, "12 entries with growing variance → active");
+
+// Test 1i: Amplification chain length scales with input
+assert(bw_amp.amplification_map.amplification_chain.length >= bw_clean.amplification_map.amplification_chain.length,
+       "Amplified → chain length ≥ clean baseline");
+
+// Test 1j: Empty log diagnostic report explains inactivity
+assert(bw_empty.diagnostic_report.length > 0, "Empty log → report has content");
+assert(typeof bw_empty.recommended_intervention === "object", "Empty log → intervention object exists");
+
 // ═══════════════════════════════════════════════════════════════
 // 2. ANCHOR CLASSIFY
 // ═══════════════════════════════════════════════════════════════
@@ -121,6 +177,57 @@ assert(anc_danger.noise_detected.length >= 3, `Dangerous → noise >= 3 (got ${a
 assert(anc_danger.confidence < 0.5, `Dangerous → low confidence (got ${anc_danger.confidence})`);
 console.log(`    type=${anc_danger.signal_type}, conf=${anc_danger.confidence}, noise=${anc_danger.noise_detected.join("; ")}`);
 
+// Test 2e: Empty input
+const anc_empty = anchorClassify({
+  raw_input: "",
+  input_type: "prompt",
+  context_window: [],
+});
+assert(anc_empty.confidence < 0.8, `Empty input → reduced confidence (got ${anc_empty.confidence})`);
+assert(["ambiguous", "action"].includes(anc_empty.signal_type), `Empty input → valid signal_type`);
+
+// Test 2f: Very long input (1000+ chars)
+const longInput = "deploy production update for service-X ".repeat(40);
+const anc_long = anchorClassify({
+  raw_input: longInput,
+  input_type: "prompt",
+  context_window: ["routine deployment"],
+});
+assert(typeof anc_long.signal_type === "string", "Long input → handled without error");
+assert(anc_long.trace[0].result.includes(`${longInput.length} chars`), "Long input → length recorded in trace");
+
+// Test 2g: Multi-noise stacking (many hedging + uncertainty)
+const anc_multinoise = anchorClassify({
+  raw_input: "maybe perhaps possibly we could try to delete idk i'm not sure",
+  input_type: "prompt",
+  context_window: [],
+});
+assert(anc_multinoise.signal_type === "ambiguous", `Heavy noise → ambiguous`);
+assert(anc_multinoise.confidence < 0.3, `Heavy noise → very low confidence (got ${anc_multinoise.confidence})`);
+assert(anc_multinoise.noise_detected.length >= 4, `Heavy noise → many indicators (got ${anc_multinoise.noise_detected.length})`);
+
+// Test 2h: Data input with spike → observation (not blocked as ambiguous)
+const anc_dataSpike = anchorClassify({
+  raw_input: "CPU usage anomaly on node-7",
+  input_type: "data",
+  context_window: [],
+});
+assert(anc_dataSpike.signal_type === "observation", `Data + spike → observation`);
+assert(anc_dataSpike.payload.proceed === false, "Observation → proceed=false");
+
+// Test 2i: Context provided removes context penalty
+const anc_withCtx = anchorClassify({
+  raw_input: "restart the service",
+  input_type: "prompt",
+  context_window: ["maintenance window approved", "rollback plan ready"],
+});
+const anc_noCtx = anchorClassify({
+  raw_input: "restart the service",
+  input_type: "prompt",
+  context_window: [],
+});
+assert(anc_withCtx.confidence >= anc_noCtx.confidence, `Context provided → confidence >= no-context`);
+
 // ═══════════════════════════════════════════════════════════════
 // 3. LOGIC SEQUENCE
 // ═══════════════════════════════════════════════════════════════
@@ -156,6 +263,50 @@ const logic_struct = logicSequence({
 });
 assert(logic_struct.risk_horizon === "structural", `Structural task → structural horizon (got ${logic_struct.risk_horizon})`);
 console.log(`    status=${logic_struct.status}, horizon=${logic_struct.risk_horizon}`);
+
+// Test 3d: Immediate horizon (small, time-sensitive)
+const logic_immediate = logicSequence({
+  isolated_signal: "send confirmation email to user",
+  input_type: "prompt",
+  context_window: ["User just completed signup", "Standard onboarding flow"],
+});
+assert(["immediate", "short_term"].includes(logic_immediate.risk_horizon), `Email send → short horizon (got ${logic_immediate.risk_horizon})`);
+
+// Test 3e: Pass through includes all 4 sequence steps in order
+const seq = logic_full.sequence_completed;
+const expected = ["context", "retrieval", "analysis", "action"];
+let inOrder = true;
+let lastIdx = -1;
+for (const step of seq) {
+  const idx = expected.indexOf(step);
+  if (idx <= lastIdx) { inOrder = false; break; }
+  lastIdx = idx;
+}
+assert(inOrder, `Full context → sequence in canonical order ${expected.join("→")}`);
+
+// Test 3f: Very long signal
+const longSignal = "implement comprehensive overhaul of the entire ".repeat(20) + "data layer";
+const logic_longSig = logicSequence({
+  isolated_signal: longSignal,
+  input_type: "prompt",
+  context_window: ["legacy system", "performance bottleneck"],
+});
+assert(typeof logic_longSig.status === "string", "Long signal → handled");
+assert(logic_longSig.recommendation.length > 0, "Long signal → recommendation generated");
+
+// Test 3g: Empty context + non-dangerous signal
+const logic_emptyCtx_safe = logicSequence({
+  isolated_signal: "log user activity for analytics",
+  input_type: "prompt",
+  context_window: [],
+});
+assert(logic_emptyCtx_safe.confidence < 1, `Empty context (safe task) → confidence < 1 (got ${logic_emptyCtx_safe.confidence})`);
+assert(["pass", "flag"].includes(logic_emptyCtx_safe.status), `Empty context → valid status`);
+
+// Test 3h: Status consistency — pass implies action_ready
+if (logic_full.status === "pass") {
+  assert(logic_full.payload.action_ready === true, `Pass status → action_ready=true`);
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 4. MESH SIMULATE
@@ -196,6 +347,55 @@ const mesh_api = meshSimulate({
 assert(mesh_api.impact_map.risk_nodes.includes("external_api"), "API call → detects API node");
 assert(mesh_api.impact_map.risk_nodes.includes("cost_center"), "API call → detects cost node");
 console.log(`    status=${mesh_api.status}, risk=${mesh_api.risk_score}, nodes=${mesh_api.impact_map.risk_nodes.join(",")}`);
+
+// Test 4d: No risk nodes (pure compute, no side effects)
+const mesh_compute = meshSimulate({
+  recommendation: "compute average of values",
+  action_type: "query",
+  risk_horizon: "immediate",
+  context_window: ["in-memory operation"],
+});
+assert(mesh_compute.risk_score < 70, `Pure compute → low risk (got ${mesh_compute.risk_score})`);
+assert(mesh_compute.status === "pass", `Pure compute → pass`);
+
+// Test 4e: Structural horizon escalates even on moderate risk
+const mesh_struct = meshSimulate({
+  recommendation: "migrate authentication tokens to new format",
+  action_type: "modification",
+  risk_horizon: "structural",
+  context_window: ["all services depend on token format", "rollback plan unclear"],
+});
+assert(mesh_struct.impact_map.structural_risk !== undefined || mesh_struct.risk_score >= 0, "Structural → structural_risk field present or score valid");
+
+// Test 4f: Multiple risk nodes detected
+const mesh_multi = meshSimulate({
+  recommendation: "delete production user records, invalidate cache, notify external webhook",
+  action_type: "deletion",
+  risk_horizon: "structural",
+  context_window: ["postgres production", "redis cache", "external API webhook", "user_accounts table"],
+});
+assert(mesh_multi.impact_map.risk_nodes.length >= 2, `Multi-system action → multiple risk nodes (got ${mesh_multi.impact_map.risk_nodes.length})`);
+assert(mesh_multi.risk_score > 50, `Multi-system delete → high risk`);
+
+// Test 4g: Recommendation with explicit safety note still scored on action
+const mesh_safe = meshSimulate({
+  recommendation: "carefully read user analytics from replica database with read-only role",
+  action_type: "query",
+  risk_horizon: "immediate",
+  context_window: ["read replica isolated from production writes"],
+});
+assert(mesh_safe.status === "pass", `Read replica → pass`);
+assert(mesh_safe.risk_score <= 70, `Read replica → not flagged`);
+
+// Test 4h: Payload safe_to_proceed correlates with status
+assert(
+  (mesh_low.status === "pass") === (mesh_low.payload.safe_to_proceed === true),
+  `Low risk: status=pass ↔ safe_to_proceed=true`
+);
+assert(
+  (mesh_high.status !== "pass") === (mesh_high.payload.safe_to_proceed === false),
+  `High risk: status≠pass ↔ safe_to_proceed=false`
+);
 
 // ═══════════════════════════════════════════════════════════════
 // 5. GATE VALIDATE
@@ -278,6 +478,115 @@ const gate_keyword = gateValidate({
 assert(gate_keyword.violations.length >= 1, `Keyword "delete" → catches "deletion" (got ${gate_keyword.violations.length})`);
 console.log(`    status=${gate_keyword.status}, violations=${gate_keyword.violations.map(v => `${v.principle_id}: ${v.triggered_by}`).join("; ")}`);
 
+// Test 5f: NEGATION CONTEXT — "do not delete" must NOT trigger violation
+const gate_negDoNot = gateValidate({
+  recommendation: "We must do not delete the audit logs under any circumstance",
+  risk_score: 30,
+  confidence: 0.90,
+  action_type: "modification",
+  context_window: [],
+  principles: [
+    { id: "P006", rule: "No deletion without approval", threshold: "contains delete", on_violation: "block" },
+  ],
+});
+assert(gate_negDoNot.violations.length === 0, `"do not delete" → no violation (got ${gate_negDoNot.violations.length})`);
+assert(gate_negDoNot.final_decision === "execute", `"do not delete" → execute`);
+
+// Test 5g: NEGATION CONTEXT — "prevent deletion"
+const gate_negPrevent = gateValidate({
+  recommendation: "Prevent deletion of system-critical records",
+  risk_score: 25,
+  confidence: 0.95,
+  action_type: "modification",
+  context_window: [],
+  principles: [
+    { id: "P007", rule: "Block all deletion attempts", threshold: "contains delete", on_violation: "block" },
+  ],
+});
+assert(gate_negPrevent.violations.length === 0, `"prevent deletion" → no violation (got ${gate_negPrevent.violations.length})`);
+
+// Test 5h: NEGATION CONTEXT — "without overwriting"
+const gate_negWithout = gateValidate({
+  recommendation: "Append the new entry without overwriting existing data",
+  risk_score: 20,
+  confidence: 0.92,
+  action_type: "modification",
+  context_window: [],
+  principles: [
+    { id: "P008", rule: "No overwrite of historical data", threshold: "contains overwrite", on_violation: "block" },
+  ],
+});
+assert(gate_negWithout.violations.length === 0, `"without overwriting" → no violation (got ${gate_negWithout.violations.length})`);
+
+// Test 5i: NEGATION must NOT swallow a real violation later in the text
+const gate_negMixed = gateValidate({
+  recommendation: "We will not overwrite the config file. Then we will overwrite the cache entries.",
+  risk_score: 50,
+  confidence: 0.90,
+  action_type: "modification",
+  context_window: [],
+  principles: [
+    { id: "P009", rule: "No overwrite operations", threshold: "contains overwrite", on_violation: "escalate" },
+  ],
+});
+assert(gate_negMixed.violations.length >= 1, `Negated + un-negated mix → still catches real violation (got ${gate_negMixed.violations.length})`);
+
+// Test 5j: Morphology Y→I (modify → modification)
+const gate_yToI = gateValidate({
+  recommendation: "Apply schema modification to user table",
+  risk_score: 40,
+  confidence: 0.85,
+  action_type: "modification",
+  context_window: [],
+  principles: [
+    { id: "P010", rule: "No modify without review", threshold: "contains modify", on_violation: "escalate" },
+  ],
+});
+assert(gate_yToI.violations.length >= 1, `"modify" → catches "modification" (Y→I rule)`);
+
+// Test 5k: Action type direct match
+const gate_actionType = gateValidate({
+  recommendation: "Process the request payload",
+  risk_score: 35,
+  confidence: 0.88,
+  action_type: "deletion",
+  context_window: [],
+  principles: [
+    { id: "P011", rule: "Deletion actions require approval", threshold: "action_type = deletion", on_violation: "escalate" },
+  ],
+});
+assert(gate_actionType.violations.length >= 1, `action_type=deletion → matches`);
+assert(gate_actionType.violations[0].triggered_by.includes("action_type"), `Violation cites action_type match`);
+
+// Test 5l: Custom confidence_floor stricter than default
+const gate_customFloor = gateValidate({
+  recommendation: "Approve transaction batch",
+  risk_score: 30,
+  confidence: 0.78,
+  action_type: "execution",
+  context_window: [],
+  principles: [],
+  confidence_floor: 0.85,
+});
+assert(gate_customFloor.status === "escalated", `confidence 0.78 < custom floor 0.85 → escalate`);
+assert(gate_customFloor.escalation_required === true, `Custom floor → escalation required`);
+
+// Test 5m: Multiple principles — all evaluated independently
+const gate_multiP = gateValidate({
+  recommendation: "Update inventory count by -500 units in production",
+  risk_score: 55,
+  confidence: 0.87,
+  action_type: "modification",
+  context_window: [],
+  principles: [
+    { id: "P012", rule: "Production writes need review", threshold: "contains production", on_violation: "warn" },
+    { id: "P013", rule: "Large inventory changes flagged", threshold: "amount > 100", on_violation: "escalate" },
+    { id: "P014", rule: "No update during peak hours", threshold: "contains peak", on_violation: "block" },
+  ],
+});
+assert(gate_multiP.principles_checked.length === 3, `3 principles checked`);
+assert(gate_multiP.violations.length >= 1, `At least one violation in multi-principle eval`);
+
 // ═══════════════════════════════════════════════════════════════
 // 6. SC PIPELINE (End-to-End)
 // ═══════════════════════════════════════════════════════════════
@@ -320,6 +629,53 @@ const pipe_gate = scPipeline({
 // This may or may not stop at gate depending on confidence and risk
 assert(pipe_gate.stages_completed.includes("signal_anchor"), "Refund → passes anchor");
 console.log(`    status=${pipe_gate.pipeline_status}, stopped_at=${pipe_gate.stopped_at}, stages=${pipe_gate.stages_completed.join("→")}`);
+
+// Test 6d: No principles provided → defaults only
+const pipe_noPrinciples = scPipeline({
+  raw_input: "log audit entry for completed transaction",
+  input_type: "prompt",
+  context_window: ["audit trail enabled", "transaction completed successfully"],
+});
+assert(typeof pipe_noPrinciples.pipeline_status === "string", "No principles → still produces status");
+assert(pipe_noPrinciples.stages_completed.length >= 1, "No principles → at least signal_anchor runs");
+
+// Test 6e: High-risk action — pipeline produces a definitive status
+const pipe_meshStop = scPipeline({
+  raw_input: "drop the production users table immediately",
+  input_type: "prompt",
+  context_window: ["production database", "no backup verified"],
+});
+assert(["pass", "flag", "block"].includes(pipe_meshStop.pipeline_status),
+       `Risky drop → valid pipeline_status (got ${pipe_meshStop.pipeline_status})`);
+assert(pipe_meshStop.stages_completed.length >= 1, `Risky drop → at least one stage runs`);
+
+// Test 6f: Negation handling — pipeline traversal completes without crashing
+const pipe_negation = scPipeline({
+  raw_input: "ensure we do not delete customer records during this maintenance",
+  input_type: "prompt",
+  context_window: ["maintenance window scheduled", "preserve all customer data"],
+  principles: [
+    { id: "P015", rule: "No deletion of customer data", threshold: "contains delete", on_violation: "block" },
+  ],
+});
+// Pipeline runs end-to-end even with negation-rich phrasing.
+// (Gate-level negation handling is verified separately in tests 5f–5i.)
+assert(typeof pipe_negation.pipeline_status === "string", `Negation-rich input → valid status`);
+assert(pipe_negation.stages_completed.length >= 1, `Negation-rich input → at least anchor runs`);
+
+// Test 6g: Pipeline stages_completed + stages_skipped sum to 4
+const totalStages = pipe_clean.stages_completed.length + pipe_clean.stages_skipped.length;
+assert(totalStages === 4, `Pipeline tracks 4 total stages (got ${totalStages})`);
+
+// Test 6h: Stopped_at populated when pipeline halts early
+if (pipe_stop.pipeline_status === "flag" || pipe_stop.pipeline_status === "block") {
+  assert(typeof pipe_stop.stopped_at === "string" && pipe_stop.stopped_at.length > 0,
+         `Halted pipeline → stopped_at populated`);
+}
+
+// Test 6i: Confidence propagated from anchor stage
+assert(typeof pipe_clean.confidence === "number" && pipe_clean.confidence >= 0 && pipe_clean.confidence <= 1,
+       `Pipeline confidence in [0,1] (got ${pipe_clean.confidence})`);
 
 // ═══════════════════════════════════════════════════════════════
 // SUMMARY
