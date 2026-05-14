@@ -175,6 +175,21 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Negation marker detection.
+// Returns true when a keyword match at `matchIndex` is preceded by
+// a negation/prevention word within a short window (~5 words).
+// This prevents false-positive violations on text like
+// "do not delete users" or "prevent deletion of records".
+const NEGATION_MARKERS = /\b(no|not|don'?t|never|prevent|prevents|preventing|avoid|avoiding|without|cannot|can'?t|won'?t|shouldn'?t|prohibit|prohibits|prohibited|forbid|forbids|forbidden|disallow|disallowed|reject|rejected|refuse|refused|block|blocked|deny|denied|skip|skipped|exclude|excludes|excluded)\b/i;
+
+function isNegatedMatch(text: string, matchIndex: number, windowChars = 40): boolean {
+  if (matchIndex <= 0) return false;
+  const startIdx = Math.max(0, matchIndex - windowChars);
+  const preceding = text.substring(startIdx, matchIndex);
+  // Reset regex state per call (constructor variant is stateless; literal /…/ flag-less is fine).
+  return NEGATION_MARKERS.test(preceding);
+}
+
 // Irregular English verb forms relevant to agent governance keywords.
 // Returns additional word forms that cannot be derived by regular morphology rules.
 function getIrregularForms(keyword: string): string[] {
@@ -299,10 +314,13 @@ function checkPrincipleViolation(
     const irregularForms = getIrregularForms(keyword);
     for (const form of irregularForms) {
       const irregRegex = new RegExp(`\\b${escapeRegex(form)}\\b`, "i");
-      if (irregRegex.test(lower)) {
-        const match = lower.match(irregRegex);
+      const irregMatch = lower.match(irregRegex);
+      if (irregMatch && irregMatch.index !== undefined) {
+        // Skip if preceded by a negation marker — avoids false positives like
+        // "do not overwrite" matching "overwrite" keyword.
+        if (isNegatedMatch(lower, irregMatch.index)) continue;
         return {
-          triggered_by: `recommendation contains "${match?.[0] ?? form}" (matched keyword: "${keyword}")`,
+          triggered_by: `recommendation contains "${irregMatch[0]}" (matched keyword: "${keyword}")`,
         };
       }
     }
@@ -344,10 +362,14 @@ function checkPrincipleViolation(
     if (yTransformPattern) patterns.push(yTransformPattern);
     const stemRegex = new RegExp(`(?:${patterns.join("|")})`, "i");
 
-    if (stemRegex.test(lower)) {
-      const match = lower.match(stemRegex);
+    // Iterate all matches so we can skip negated occurrences and continue
+    // searching the rest of the recommendation for a real violation.
+    const stemRegexGlobal = new RegExp(stemRegex.source, "gi");
+    let stemMatch: RegExpExecArray | null;
+    while ((stemMatch = stemRegexGlobal.exec(lower)) !== null) {
+      if (isNegatedMatch(lower, stemMatch.index)) continue;
       return {
-        triggered_by: `recommendation contains "${match?.[0] ?? keyword}" (matched keyword: "${keyword}")`,
+        triggered_by: `recommendation contains "${stemMatch[0]}" (matched keyword: "${keyword}")`,
       };
     }
   }
