@@ -4,7 +4,7 @@ Deterministic MCP middleware for diagnosing and containing reasoning amplificati
 
 [![CI](https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml/badge.svg)](https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml)
 [![MCP Compatible](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io/)
-[![Tests](https://img.shields.io/badge/tests-58%20passing-green)]()
+[![Tests](https://img.shields.io/badge/tests-117%20passing-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
@@ -21,7 +21,7 @@ Deterministic MCP middleware for diagnosing and containing reasoning amplificati
 **Quick proof:**
 
 - 6 MCP tools — signal classification, reasoning enforcement, impact simulation, governance gating
-- 58 end-to-end tests — all deterministic, all passing
+- 57 end-to-end scenarios / 117 assertions — all deterministic, all passing
 - 1 real-world case study — Kalshi crypto trading bot (-80% drawdown diagnosed)
 - Deterministic outputs — same input always produces same output, no stochastic variance
 
@@ -334,6 +334,7 @@ npx @agdp/structured-cognition
 - **Dual-block Output**: Each tool returns (1) human-readable diagnostic report + (2) structured JSON — for both auditability and programmatic use.
 - **Auto-gating Pipeline**: If any stage blocks, downstream stages are skipped. Signal must be classified before reasoning can proceed.
 - **Morphology-aware Matching**: Keyword detection catches inflected forms (e.g., "deletion" from "delete", "overwritten" from "overwrite") — critical for governance validation in natural language contexts.
+- **Negation Context Detection**: `gate_validate` ignores keyword matches preceded by negation markers ("do not delete", "prevent deletion", "without overwriting") within a short window — prevents false-positive violations on protective phrasing while still catching un-negated violations later in the same text.
 
 ---
 
