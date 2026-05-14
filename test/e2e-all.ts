@@ -228,6 +228,53 @@ const anc_noCtx = anchorClassify({
 });
 assert(anc_withCtx.confidence >= anc_noCtx.confidence, `Context provided → confidence >= no-context`);
 
+// Test 2j: NEGATION adjacent to dangerous action — flagged as intent inversion
+const anc_negDelete = anchorClassify({
+  raw_input: "do not delete the audit logs",
+  input_type: "prompt",
+  context_window: ["compliance requirement"],
+});
+const negNoiseFound = anc_negDelete.noise_detected.some(n => n.includes("negation near irreversible"));
+assert(negNoiseFound, `"do not delete" → negation-near-danger noise indicator present`);
+
+// Test 2k: NEGATION 'prevent deletion' — also caught
+const anc_prevent = anchorClassify({
+  raw_input: "prevent deletion of system-critical records",
+  input_type: "prompt",
+  context_window: [],
+});
+const negPreventFound = anc_prevent.noise_detected.some(n => n.includes("negation near irreversible"));
+assert(negPreventFound, `"prevent deletion" → negation-near-danger noise present`);
+
+// Test 2l: REGRESSION — "I'm not sure" without danger word must NOT trigger negation noise
+const anc_notSureNoDanger = anchorClassify({
+  raw_input: "I'm not sure when to run the report generator",
+  input_type: "prompt",
+  context_window: [],
+});
+const falsePositive = anc_notSureNoDanger.noise_detected.some(n => n.includes("negation near irreversible"));
+assert(!falsePositive, `"not sure" without danger → no false-positive negation noise`);
+
+// Test 2m: REGRESSION — danger word without negation works as before
+const anc_dangerOnly = anchorClassify({
+  raw_input: "delete archived records older than 1 year",
+  input_type: "prompt",
+  context_window: ["retention policy approved"],
+});
+const fpAdjacent = anc_dangerOnly.noise_detected.some(n => n.includes("negation near irreversible"));
+assert(!fpAdjacent, `"delete archived" without negation → no negation noise`);
+assert(anc_dangerOnly.signal_type !== "ambiguous" || anc_dangerOnly.noise_detected.length > 0,
+       `"delete archived" with approved context → not falsely ambiguous`);
+
+// Test 2n: NEGATION far away does NOT trigger ("not" 50+ chars before "delete")
+const anc_negFar = anchorClassify({
+  raw_input: "we did not have time to review yesterday but today we will delete the old logs",
+  input_type: "prompt",
+  context_window: [],
+});
+const farNeg = anc_negFar.noise_detected.some(n => n.includes("negation near irreversible"));
+assert(!farNeg, `Negation far from dangerous action (>30 chars) → no false trigger`);
+
 // ═══════════════════════════════════════════════════════════════
 // 3. LOGIC SEQUENCE
 // ═══════════════════════════════════════════════════════════════
