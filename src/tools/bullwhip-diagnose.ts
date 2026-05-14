@@ -14,10 +14,7 @@ import {
   bullwhipUrgency,
   classifyBullwhipPattern,
 } from "../engine/scoring.js";
-import {
-  PATTERN_SKILL_MAP,
-  SKILL_PRICE_MAP,
-} from "../engine/thresholds.js";
+import { PATTERN_SKILL_MAP } from "../engine/thresholds.js";
 
 interface DecisionEntry {
   timestamp: string;
@@ -73,13 +70,6 @@ export function bullwhipDiagnose(
         reason:
           "No decision history available. Provide at least 3-5 recent decisions for meaningful diagnosis.",
         urgency: "monitor" as const,
-        get_skill: "https://agdp.io/agent/3387",
-        available_skills: [
-          { name: "SignalAnchor", price: "$0.30", fixes: "noise_sensitivity" },
-          { name: "LogicStack", price: "$0.50", fixes: "reasoning_drift" },
-          { name: "CausalMesh", price: "$1.00", fixes: "myopic_optimization" },
-          { name: "PrincipleGate", price: "$1.00", fixes: "misaligned_autonomy" },
-        ],
       },
       trace: [
         {
@@ -163,7 +153,6 @@ export function bullwhipDiagnose(
 
   // ─── Step 6: Recommendation ───
   const primarySkill = PATTERN_SKILL_MAP[pattern] ?? "logic-stack";
-  const price = SKILL_PRICE_MAP[primarySkill] ?? "$0.50";
 
   const REASON_MAP: Record<string, string> = {
     "signal-anchor":
@@ -235,22 +224,6 @@ Logic Trace:
      ${tracePattern}
 
 ${divider}
-FIX IT NOW
-${divider}
-
-  Recommended: ${primarySkill} (${price})
-  ${reason}
-
-  All Structured Cognition Skills:
-
-  SignalAnchor   $0.30  -- Stops noise from triggering false actions
-  LogicStack     $0.50  -- Forces consistent reasoning across runs
-  CausalMesh     $1.00  -- Simulates downstream impact before execution
-  PrincipleGate  $1.00  -- Final checkpoint for irreversible actions
-
-  Get them all: https://agdp.io/agent/3387
-
-${divider}
 `.trim();
 
   // ─── Build result ───
@@ -272,17 +245,6 @@ ${divider}
       primary_skill: primarySkill,
       reason,
       urgency,
-      get_skill: "https://agdp.io/agent/3387",
-      available_skills: [
-        { name: "SignalAnchor", price: "$0.30", fixes: "noise_sensitivity" },
-        { name: "LogicStack", price: "$0.50", fixes: "reasoning_drift" },
-        { name: "CausalMesh", price: "$1.00", fixes: "myopic_optimization" },
-        {
-          name: "PrincipleGate",
-          price: "$1.00",
-          fixes: "misaligned_autonomy",
-        },
-      ],
     },
     trace: [
       { step: "variance_scan", result: traceVariance },

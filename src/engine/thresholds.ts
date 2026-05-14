@@ -75,10 +75,3 @@ export const PATTERN_LAYER_MAP: Record<string, string> = {
   execution: "myopic_optimization",
   output: "misaligned_autonomy",
 };
-
-export const SKILL_PRICE_MAP: Record<string, string> = {
-  "signal-anchor": "$0.30",
-  "logic-stack": "$0.50",
-  "causal-mesh": "$1.00",
-  "principle-gate": "$1.00",
-};

@@ -507,6 +507,20 @@ npm test        # 57 scenarios / 117 assertions
 
 ---
 
+## Commercial & Hosted Options
+
+This package is **free and open source** (MIT). It is fully functional on
+its own — install it, run it, modify it, no restrictions.
+
+A separately operated **hosted/managed version** of the Structured Cognition
+skills exists at [agdp.io](https://agdp.io/agent/3387) for teams that prefer
+managed infrastructure over self-hosting. This is independent of the
+open-source package — diagnostic output in this repo contains **no
+upsell, no pricing, and no commercial links**. The diagnosis stays neutral;
+commercial information lives here in the README and nowhere else.
+
+---
+
 ## License
 
 MIT — [JIPRO589](https://github.com/JIPRO589)

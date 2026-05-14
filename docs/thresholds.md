@@ -137,17 +137,6 @@ intervention budget allows multiple skills, deploy by layer-of-origin
 
 ---
 
-## SKILL_PRICE_MAP
-
-Reference prices for the equivalent commercial skills offered separately
-(`signal-anchor: $0.30`, `logic-stack: $0.50`, `causal-mesh: $1.00`,
-`principle-gate: $1.00`). These are informational and do not affect any
-tool behavior — they only appear in the bullwhip diagnostic report to
-suggest cost-aware intervention ordering. Adjust or remove this map if
-you're using the package outside the AGDP commercial context.
-
----
-
 ## How to tune safely
 
 1. **Measure your baseline** before changing any threshold. Run the tools
