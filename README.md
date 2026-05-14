@@ -93,6 +93,12 @@ Raw Input
 
 ## Tool Examples
 
+> The examples below show **input / structured JSON output**.
+> For the **human-readable report** that each tool also returns
+> (Block 1 of the dual-block output), see
+> [`docs/sample-reports.md`](docs/sample-reports.md) — real captured output
+> for every tool.
+
 ### `anchor_classify` — Signal Classification
 
 ```json
