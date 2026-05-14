@@ -10,6 +10,7 @@
 
 import { anchorStatus, anchorShouldProceed } from "../engine/scoring.js";
 import { ANCHOR } from "../engine/thresholds.js";
+import { anchorReport } from "../engine/report.js";
 
 interface AnchorInput {
   raw_input: string;
@@ -41,7 +42,7 @@ export function anchorClassify(input: AnchorInput) {
     : "";
   const traceContext = `Context window contains ${context_window.length} item(s). ${contextDesc}${flagNote}`;
 
-  return {
+  const result = {
     skill: "signal-anchor",
     version: "1.0",
     status,
@@ -57,6 +58,11 @@ export function anchorClassify(input: AnchorInput) {
       { step: "signal_isolation", result: traceIsolation },
       { step: "context_definition", result: traceContext },
     ],
+  };
+
+  return {
+    ...result,
+    diagnostic_report: anchorReport(result as unknown as Record<string, unknown>),
   };
 }
 
@@ -119,12 +125,18 @@ function analyzeSignal(
     }
   }
 
-  // Dangerous action words (need high confidence)
+  // Dangerous action words (need high confidence).
+  // Includes both verb forms and common noun derivatives so substring matching
+  // catches phrasings like "schedule deletion" or "trigger removal".
+  // (Anchor uses substring matching by design — full morphology handling lives in gate_validate.)
   const dangerousActions = [
     "delete",
+    "deletion",
     "drop",
     "remove",
+    "removal",
     "destroy",
+    "destruction",
     "purge",
     "wipe",
     "reset",
@@ -136,6 +148,30 @@ function analyzeSignal(
       "irreversible action keyword combined with uncertainty"
     );
     confidence -= 0.2;
+  }
+
+  // Negation adjacent to a dangerous action — intent inversion.
+  // We only fire when a negation marker appears within ~30 chars BEFORE a
+  // dangerous verb. This avoids false positives like "I'm not sure" where
+  // "not" is far from (or unrelated to) any irreversible action.
+  // Examples that trigger:
+  //   "do not delete the records"          → negation near "delete"
+  //   "prevent deletion of audit logs"     → "prevent" near "delete" (inside "deletion")
+  //   "we will never purge user data"      → "never" near "purge"
+  //   "drop the index without backup"      → no negation BEFORE "drop", does not trigger
+  const negationAdjacentRe = /\b(no|not|don'?t|never|prevent|prevents|preventing|avoid|avoiding|without|cannot|can'?t|won'?t|prohibit|prohibits|forbid|forbids|disallow|disallows)\b/i;
+  for (const danger of dangerousActions) {
+    const dIdx = lower.indexOf(danger);
+    if (dIdx === -1) continue;
+    const windowStart = Math.max(0, dIdx - 30);
+    const preceding = lower.substring(windowStart, dIdx);
+    if (negationAdjacentRe.test(preceding)) {
+      noiseDetected.push(
+        `negation near irreversible action "${danger}" -- intent inversion`
+      );
+      confidence -= 0.15;
+      break; // one negation-adjacent finding is enough
+    }
   }
 
   // Context penalty

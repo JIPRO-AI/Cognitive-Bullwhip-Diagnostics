@@ -9,6 +9,7 @@
 
 import { meshStatus, meshSafeToProceed } from "../engine/scoring.js";
 import { MESH } from "../engine/thresholds.js";
+import { meshReport } from "../engine/report.js";
 
 interface MeshInput {
   recommendation: string;
@@ -73,7 +74,7 @@ export function meshSimulate(input: MeshInput) {
         100
     ) / 100;
 
-  return {
+  const result = {
     skill: "causal-mesh",
     version: "1.0",
     status,
@@ -98,6 +99,11 @@ export function meshSimulate(input: MeshInput) {
       { step: "risk_simulation", result: traceRiskSim },
       { step: "horizon_analysis", result: traceHorizon },
     ],
+  };
+
+  return {
+    ...result,
+    diagnostic_report: meshReport(result as unknown as Record<string, unknown>),
   };
 }
 

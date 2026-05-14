@@ -9,6 +9,7 @@
 
 import { gateDecision, gateStatus } from "../engine/scoring.js";
 import { GATE } from "../engine/thresholds.js";
+import { gateReport } from "../engine/report.js";
 
 interface PrincipleConfig {
   id: string;
@@ -150,7 +151,7 @@ export function gateValidate(input: GateInput) {
     : recommendation;
   const traceDecision = `Final decision: ${decision}. ${decision === "execute" ? `All checks passed. Action "${recPreview}" approved for autonomous execution.` : decision === "escalate" ? `Escalation required. ${escalationReason}` : `Blocked. ${escalationReason}`}`;
 
-  return {
+  const result = {
     skill: "principle-gate",
     version: "1.0",
     status,
@@ -166,6 +167,11 @@ export function gateValidate(input: GateInput) {
       { step: "confidence_risk_check", result: traceConfidence },
       { step: "final_decision", result: traceDecision },
     ],
+  };
+
+  return {
+    ...result,
+    diagnostic_report: gateReport(result as unknown as Record<string, unknown>),
   };
 }
 

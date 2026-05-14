@@ -12,6 +12,7 @@ import { anchorClassify } from "./anchor-classify.js";
 import { logicSequence } from "./logic-sequence.js";
 import { meshSimulate } from "./mesh-simulate.js";
 import { gateValidate } from "./gate-validate.js";
+import { pipelineReport } from "../engine/report.js";
 
 interface PrincipleConfig {
   id: string;
@@ -166,7 +167,7 @@ function buildPipelineResult(
     summaryParts.push(`${skipped}: skipped (pipeline stopped at ${stoppedAt})`);
   }
 
-  return {
+  const result = {
     skill: "sc-pipeline",
     version: "1.0",
     pipeline_status: finalStatus,
@@ -182,5 +183,10 @@ function buildPipelineResult(
         result: `Executed ${completedStages.length}/4 stages. ${stoppedAt ? `Pipeline ${finalStatus === "block" ? "blocked" : "flagged"} at ${stoppedAt}.` : "All stages completed."} Overall confidence: ${confidence}.`,
       },
     ],
+  };
+
+  return {
+    ...result,
+    diagnostic_report: pipelineReport(result as unknown as Record<string, unknown>),
   };
 }

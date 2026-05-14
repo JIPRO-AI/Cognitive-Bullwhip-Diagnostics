@@ -10,6 +10,7 @@
  */
 
 import { LOGIC } from "../engine/thresholds.js";
+import { logicReport } from "../engine/report.js";
 
 interface LogicInput {
   isolated_signal: string;
@@ -72,7 +73,7 @@ export function logicSequence(input: LogicInput) {
   const recommendation =
     steps.action?.result ?? "Sequence incomplete -- no recommendation generated";
 
-  return {
+  const result = {
     skill: "logic-stack",
     version: "1.0",
     status,
@@ -90,6 +91,11 @@ export function logicSequence(input: LogicInput) {
       step: stepName,
       result: steps[stepName]?.result ?? `Step ${stepName} was not completed`,
     })),
+  };
+
+  return {
+    ...result,
+    diagnostic_report: logicReport(result as unknown as Record<string, unknown>),
   };
 }
 
