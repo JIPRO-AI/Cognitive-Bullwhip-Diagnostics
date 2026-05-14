@@ -2,7 +2,7 @@
 
 Deterministic MCP middleware for diagnosing and containing reasoning amplification in AI agent workflows.
 
-[![CI](https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml/badge.svg)](https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml)
+[![CI](https://github.com/JIPRO589/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml/badge.svg)](https://github.com/JIPRO589/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml)
 [![MCP Compatible](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io/)
 [![Tests](https://img.shields.io/badge/tests-117%20passing-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -377,6 +377,72 @@ SCM defines six levels of cognitive maturity observed across 135+ operational cy
 
 ---
 
+## Library Framework Backbone
+
+This package operationalizes a set of frameworks developed in
+[Ji Research Library](https://jipro-ai.github.io/profji-library/) — a public
+collection of structured essays on AI judgment, measurement, and cognition.
+Each tool corresponds to a published diagnostic concept:
+
+| Tool | Library framework | Article (Korean source) | Failure mode addressed |
+|------|------------------|------------------------|------------------------|
+| `bullwhip_diagnose` | **Judgment Reproduction Crisis (JRC)** + **Measurement Asymmetry** | [JRC](https://jipro-ai.github.io/profji-library/articles/judgment-reproduction-crisis/) · [measurement-asymmetry](https://jipro-ai.github.io/profji-library/articles/ai-impact-measurement-trap/) | Small errors compound into measurable failure only after the *measurable side* of the asymmetry is exhausted. This tool surfaces the compounding earlier than KPIs can. |
+| `anchor_classify` | **Automation Bias** + Signal Isolation | [automation-bias](https://jipro-ai.github.io/profji-library/articles/automation-bias-decision-making/) | Agents treat hedged or ambiguous input as actionable. Anchor forces signal/noise separation before execution. |
+| `logic_sequence` | **Hybrid Mind** sequencing | [hybrid-mind](https://jipro-ai.github.io/profji-library/articles/hybrid-mind/) | Reasoning drift between runs. LogicStack enforces a canonical Context → Retrieval → Analysis → Action sequence. |
+| `mesh_simulate` | **Multi-Agent Paradox** (partial) | [multi-agent-paradox](https://jipro-ai.github.io/profji-library/articles/multi-agent-paradox/) | Local optimization with hidden cross-system blast radius. Mesh maps downstream nodes before commit. |
+| `gate_validate` | Governance / Principle gating | (see Hybrid Mind 4-layer design principle) | Outputs that pass logic but violate declared governance rules. Gate validates against principles with negation-aware keyword matching. |
+| `sc_pipeline` | Pipeline composition | (composite — applies all of the above) | Stage skipping, ad-hoc validation order. Pipeline enforces a fixed order and short-circuits on the first block/flag. |
+
+The framework mapping was externally cross-checked against the same library's
+Korean discussion track: 5 of 6 tools map *directly* to a library framework;
+`mesh_simulate` maps partially (Multi-Agent Paradox covers part of the
+downstream-impact concern but not all).
+
+If you are reading this and want the *sourcing layer* — the qualitative
+reasoning that produced the threshold-based tools — start with the JRC and
+Measurement Asymmetry articles. They define the failure mode this package
+quantifies.
+
+---
+
+## Limitations
+
+This is a deterministic diagnostic layer, not a model. Specific limits you
+should plan around:
+
+- **Empirical thresholds.** `RATIO_CONFIRM = 3.0` (bullwhip), `ANCHOR.CONFIDENCE_AUTO_FLAG = 0.6`, `GATE.RISK_AUTO_BLOCK = 90` and similar constants are empirical defaults chosen for the case studies above. Calibrate to your domain — see [`docs/thresholds.md`](docs/thresholds.md) for justifications and tuning guidance.
+- **Anchor uses substring matching.** Dangerous-action detection in `anchor_classify` is substring-based and English-only. It catches "delete" / "deletion" / "removal" / "destruction" but does not handle arbitrary morphology or non-English input. Full morphological handling lives in `gate_validate`.
+- **Negation handling is window-based.** Both `anchor_classify` (intent-inversion detection near dangerous verbs) and `gate_validate` (false-positive suppression) look at a ~30–40 character window before a match. Distant or complex negations ("we will not, under any circumstances spanning more than thirty words of qualification, delete X") may not be detected.
+- **Case study is retrospective.** The Kalshi diagnosis demonstrates *what the tools would have caught* in a real failure. It does not prove prospective prevention rates in production. Treat false-positive and false-negative rates as your own measurement problem.
+- **Bullwhip variance is caller-supplied.** `bullwhip_diagnose` requires `variance_score` on each `DecisionEntry`. The package does not compute variance for you — you decide what variance means in your decision log.
+- **MCP-shaped integration.** Tools target the Model Context Protocol. They work standalone (direct function calls in tests) but the recommended integration path is via MCP-compatible clients. LangChain / CrewAI / AutoGen direct adapters are not bundled (open contribution welcome).
+
+Full discussion in [`docs/limitations.md`](docs/limitations.md).
+
+---
+
+## How This Compares
+
+This package is one of several deterministic-leaning safety layers for
+LLM agent systems. High-level positioning:
+
+| | **Cognitive Bullwhip Diagnostics** | Guardrails AI | NeMo Guardrails | Constitutional AI |
+|---|---|---|---|---|
+| Engine | 100% deterministic (no LLM inside) | Validators (some LLM-based) | LLM + rule rails | LLM self-critique |
+| Primary concern | Cross-layer amplification + governance | Output validation (format / topic / PII) | Conversational topic rails | Alignment via principles |
+| Layer model | 4-layer SCM (input → reasoning → execution → output) | Per-output validators | Topical rails graph | Per-response critique |
+| Best fit | Tool-using agents, decision pipelines | Format/PII guarantees on outputs | Conversational topical containment | Training-time alignment, model-side critique |
+| Determinism guarantee | Same input → same output, always | Depends on validator implementation | Depends on LLM in critique step | None |
+| MCP-native | Yes (MCP server out of the box) | No (Python lib) | No (Python framework) | No (training technique) |
+
+These tools are complementary, not competing — they target different layers
+of agent safety. Use this package when you need a deterministic gate
+specifically for amplification, sequence enforcement, and governance audit;
+combine with the others when you also need format validation, topic
+containment, or training-time alignment.
+
+---
+
 ## Case Study
 
 See [Kalshi Crypto Trading Bot — Full Diagnosis](docs/case-studies/kalshi-bullwhip.md) for a detailed walkthrough of how the Cognitive Bullwhip Effect caused an 80% capital loss despite a 56% win rate, and how each tool in this package would have caught and contained the failure.
@@ -387,7 +453,7 @@ See [Kalshi Crypto Trading Bot — Full Diagnosis](docs/case-studies/kalshi-bull
 
 ```bash
 npm install
-npm test     # 58 E2E tests across all 6 tools
+npm test     # 57 scenarios / 117 assertions across all 6 tools
 ```
 
 ---
@@ -395,12 +461,12 @@ npm test     # 58 E2E tests across all 6 tools
 ## Development
 
 ```bash
-git clone https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics.git
+git clone https://github.com/JIPRO589/Cognitive-Bullwhip-Diagnostics.git
 cd Cognitive-Bullwhip-Diagnostics
 npm install
 npm run dev     # Development mode (tsx)
 npm run build   # TypeScript compile
-npm test        # 58 E2E tests
+npm test        # 57 scenarios / 117 assertions
 ```
 
 ---
@@ -410,6 +476,13 @@ npm test        # 58 E2E tests
 ### Primary Framework
 - Ji, R. (2026). "SCM — The Structured Cognition Model: A Reasoning Architecture for Human and AI Operations." White Paper v2.4, Enterprise Edition.
 - Ji, R. (2026). "The Architecture of a Hybrid Mind: How a Cognition Model, a Domain OS, and an AI Partnership Evolved into One System."
+
+### Library Articles (sourcing layer for the tools above)
+- Ji Research Library — [Judgment Reproduction Crisis (JRC)](https://jipro-ai.github.io/profji-library/articles/judgment-reproduction-crisis/) — origin of the amplification concern.
+- Ji Research Library — [Measurement Asymmetry](https://jipro-ai.github.io/profji-library/articles/ai-impact-measurement-trap/) — explains *why* the cost of cognitive amplification stays invisible until it is large.
+- Ji Research Library — [Hybrid Mind](https://jipro-ai.github.io/profji-library/articles/hybrid-mind/) — 4-layer design (division → verification → realignment → meta) underlying the pipeline sequence.
+- Ji Research Library — [Automation Bias and Decision Making](https://jipro-ai.github.io/profji-library/articles/automation-bias-decision-making/) — the cognitive trap that `anchor_classify` is built to resist.
+- Ji Research Library — [Multi-Agent Paradox](https://jipro-ai.github.io/profji-library/articles/multi-agent-paradox/) — partial backbone for `mesh_simulate`.
 
 ### Bullwhip Effect (Supply Chain)
 - Lee, H.L., Padmanabhan, V., & Whang, S. (1997). "Information Distortion in a Supply Chain: The Bullwhip Effect." *Management Science*, 43(4), 546-558.
@@ -430,4 +503,4 @@ npm test        # 58 E2E tests
 
 ## License
 
-MIT — [JIPRO-AI](https://github.com/JIPRO-AI)
+MIT — [JIPRO589](https://github.com/JIPRO589)
