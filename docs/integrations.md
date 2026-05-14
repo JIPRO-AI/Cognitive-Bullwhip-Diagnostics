@@ -33,7 +33,7 @@ Execute  Human Review
   "mcpServers": {
     "structured-cognition": {
       "command": "npx",
-      "args": ["@agdp/structured-cognition"]
+      "args": ["-y", "github:JIPRO589/Cognitive-Bullwhip-Diagnostics"]
     }
   }
 }

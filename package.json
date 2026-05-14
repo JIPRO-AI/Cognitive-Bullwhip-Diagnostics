@@ -31,7 +31,7 @@
     "agent-governance",
     "decision-diagnostics"
   ],
-  "author": "JIPRO-AI",
+  "author": "JIPRO589",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
@@ -51,7 +51,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics"
+    "url": "https://github.com/JIPRO589/Cognitive-Bullwhip-Diagnostics"
   },
-  "homepage": "https://github.com/JIPRO-AI/Cognitive-Bullwhip-Diagnostics"
+  "homepage": "https://github.com/JIPRO589/Cognitive-Bullwhip-Diagnostics"
 }

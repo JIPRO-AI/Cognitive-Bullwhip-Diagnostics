@@ -313,6 +313,13 @@ This package is the **deterministic containment layer** for that amplification.
 
 ## Quick Start
 
+Run directly from GitHub — no npm publish required. The `prepare` script
+builds the TypeScript on install:
+
+```bash
+npx -y github:JIPRO589/Cognitive-Bullwhip-Diagnostics
+```
+
 Add to your MCP client configuration (Claude Desktop, Cursor, etc.):
 
 ```json
@@ -320,17 +327,17 @@ Add to your MCP client configuration (Claude Desktop, Cursor, etc.):
   "mcpServers": {
     "structured-cognition": {
       "command": "npx",
-      "args": ["@agdp/structured-cognition"]
+      "args": ["-y", "github:JIPRO589/Cognitive-Bullwhip-Diagnostics"]
     }
   }
 }
 ```
 
-Or run directly:
-
-```bash
-npx @agdp/structured-cognition
-```
+> **Note on the npm package name.** `package.json` declares the name
+> `@agdp/structured-cognition`, but the package is **not yet published to
+> npm** — `npx @agdp/structured-cognition` will 404. Use the GitHub form
+> above until/unless an npm release is published. See
+> [Commercial & Hosted Options](#commercial--hosted-options).
 
 ---
 

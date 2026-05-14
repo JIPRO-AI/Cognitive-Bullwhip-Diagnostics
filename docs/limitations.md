@@ -102,9 +102,13 @@ false-positive and false-negative rates over time) is your responsibility.
 
 ## 6. MCP-shaped by default
 
-The package ships as an MCP server (`@agdp/structured-cognition`). The
-tools are also importable directly (used heavily in the test suite), but:
+The package runs as an MCP server. It is currently distributed via GitHub
+(`npx -y github:JIPRO589/Cognitive-Bullwhip-Diagnostics`) — **not yet
+published to npm**, so the `@agdp/structured-cognition` name in
+`package.json` is a declared-but-unpublished identifier. The tools are also
+importable directly (used heavily in the test suite), but:
 
+- **Not on the npm registry yet.** Install via the GitHub form above, or clone.
 - **Direct adapters for LangChain, CrewAI, AutoGen are not bundled.**
 - **No HTTP/REST wrapper.** Tools are TypeScript functions + MCP stdio.
 - **No language bindings beyond Node/TS.** If you need Python, wrap the MCP server.
