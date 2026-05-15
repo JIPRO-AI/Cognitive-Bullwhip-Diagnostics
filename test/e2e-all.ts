@@ -10,6 +10,11 @@ import { logicSequence } from "../src/tools/logic-sequence.js";
 import { meshSimulate } from "../src/tools/mesh-simulate.js";
 import { gateValidate } from "../src/tools/gate-validate.js";
 import { scPipeline } from "../src/tools/sc-pipeline.js";
+import {
+  convertRawEvents,
+  classifyOutcome,
+  VARIANCE_STRATEGIES,
+} from "../src/engine/variance.js";
 
 let passed = 0;
 let failed = 0;
@@ -128,6 +133,160 @@ assert(bw_amp.amplification_map.amplification_chain.length >= bw_clean.amplifica
 // Test 1j: Empty log diagnostic report explains inactivity
 assert(bw_empty.diagnostic_report.length > 0, "Empty log → report has content");
 assert(typeof bw_empty.recommended_intervention === "object", "Empty log → intervention object exists");
+
+// Test 1k: legacy/array return paths now carry a status discriminant
+assert(bw_amp.status === "diagnosed", "Legacy array form → status 'diagnosed'");
+assert(bw_empty.status === "insufficient_data", "Legacy empty array → status 'insufficient_data'");
+assert((bw_amp as any).variance_source === "caller_supplied", "Array form → variance_source 'caller_supplied'");
+
+// Test 1l: raw_events without variance_strategy → HALT, return candidates (no auto-pick)
+const bw_needsStrategy = bullwhipDiagnose({
+  raw_events: [
+    { timestamp: "2026-05-14T10:00:00Z", input: "BTC moved +0.3%", decision: "Opened YES position", outcome: "Lost position", notes: "Same signal repeated 3 times" },
+    { timestamp: "2026-05-14T10:05:00Z", input: "BTC moved +0.2%", decision: "Opened another YES position", outcome: "Lost again" },
+  ],
+});
+assert(bw_needsStrategy.status === "needs_variance_strategy", "raw_events w/o strategy → status 'needs_variance_strategy'");
+assert((bw_needsStrategy as any).diagnosis_run === false, "raw_events w/o strategy → diagnosis_run false");
+assert(Array.isArray((bw_needsStrategy as any).variance_strategy_candidates) &&
+       (bw_needsStrategy as any).variance_strategy_candidates.length === 3,
+       "raw_events w/o strategy → 3 strategy candidates returned");
+assert((bw_needsStrategy as any).events_received === 2, "raw_events w/o strategy → events_received echoed");
+assert(bw_needsStrategy.diagnostic_report.includes("variance strategy"), "raw_events w/o strategy → report explains the choice");
+assert(bw_needsStrategy.diagnostic_report.includes("do not choose automatically"), "raw_events w/o strategy → report tells caller to ask the user");
+
+// Test 1m: raw_events WITH variance_strategy → runs a full diagnosis
+const bw_rawDiag = bullwhipDiagnose({
+  raw_events: [
+    { timestamp: "2026-05-14T10:00:00Z", input: "BTC +0.3%", decision: "Logged signal", outcome: "as expected" },
+    { timestamp: "2026-05-14T10:05:00Z", input: "Volume spike", decision: "Opened YES position", outcome: "unexpected reversal" },
+    { timestamp: "2026-05-14T10:10:00Z", input: "Same data", decision: "Doubled the position", outcome: "Lost position, -$40" },
+    { timestamp: "2026-05-14T10:15:00Z", input: "PnL down", decision: "Recovery trade", outcome: "failed execution, -$120 drawdown" },
+  ],
+  variance_strategy: "execution_loss",
+});
+assert(bw_rawDiag.status === "diagnosed", "raw_events + strategy → status 'diagnosed'");
+assert(typeof (bw_rawDiag as any).severity_score === "number", "raw_events + strategy → numeric severity score");
+assert((bw_rawDiag as any).variance_source === "execution_loss", "raw_events + strategy → variance_source records the strategy");
+assert(bw_rawDiag.diagnostic_report.includes("BULLWHIP"), "raw_events + strategy → full diagnostic report generated");
+
+// Test 1n: same raw_events + strategy is deterministic (identical output on re-run)
+const bw_rawDiagRepeat = bullwhipDiagnose({
+  raw_events: [
+    { timestamp: "2026-05-14T10:00:00Z", input: "BTC +0.3%", decision: "Logged signal", outcome: "as expected" },
+    { timestamp: "2026-05-14T10:05:00Z", input: "Volume spike", decision: "Opened YES position", outcome: "unexpected reversal" },
+    { timestamp: "2026-05-14T10:10:00Z", input: "Same data", decision: "Doubled the position", outcome: "Lost position, -$40" },
+    { timestamp: "2026-05-14T10:15:00Z", input: "PnL down", decision: "Recovery trade", outcome: "failed execution, -$120 drawdown" },
+  ],
+  variance_strategy: "execution_loss",
+});
+assert(JSON.stringify(bw_rawDiag) === JSON.stringify(bw_rawDiagRepeat), "raw_events + strategy → deterministic across runs");
+
+// Test 1o: variance_strategy choice changes the variance scoring
+const rawEventsSample = [
+  { input: "signal A", decision: "buy 5 contracts", outcome: "ok" },
+  { input: "signal B", decision: "sell 5 contracts", outcome: "ok" },
+];
+const conv_flip = convertRawEvents(rawEventsSample, "decision_flip");
+const conv_dev = convertRawEvents(rawEventsSample, "outcome_deviation");
+assert(conv_flip[1].variance_score !== conv_dev[1].variance_score, "Different variance_strategy → different scoring");
+assert(conv_flip[1].variance_score > conv_flip[0].variance_score, "decision_flip → reversal (buy→sell) scores above the first event");
+assert(conv_flip.length === 2 && conv_dev.length === 2, "convertRawEvents → preserves event count");
+
+// Test 1p: classifyOutcome maps free text to the strict enum
+assert(classifyOutcome("Lost position, -$92") === "error", "classifyOutcome → loss text maps to 'error'");
+assert(classifyOutcome("unexpected reversal") === "unexpected", "classifyOutcome → 'unexpected' maps to 'unexpected'");
+assert(classifyOutcome("completed normally") === "expected", "classifyOutcome → normal text maps to 'expected'");
+
+// Test 1q: raw_events with missing timestamps → synthetic timestamps, still diagnoses
+const bw_noTs = bullwhipDiagnose({
+  raw_events: [
+    { input: "e1", decision: "act", outcome: "ok" },
+    { input: "e2", decision: "act", outcome: "unexpected" },
+    { input: "e3", decision: "act", outcome: "error: failed" },
+  ],
+  variance_strategy: "outcome_deviation",
+});
+assert(bw_noTs.status === "diagnosed", "raw_events w/o timestamps → still diagnoses (synthetic timestamps)");
+
+// Test 1r: object-form decision_log → backward-compatible diagnosis
+const bw_objForm = bullwhipDiagnose({
+  decision_log: [
+    { timestamp: "2026-05-14T10:00:00Z", input_summary: "x", decision_made: "y", outcome: "error", variance_score: 1.5 },
+    { timestamp: "2026-05-14T10:05:00Z", input_summary: "x", decision_made: "y", outcome: "error", variance_score: 2.0 },
+  ],
+});
+assert(bw_objForm.status === "diagnosed", "Object-form decision_log → status 'diagnosed'");
+assert((bw_objForm as any).variance_source === "caller_supplied", "Object-form decision_log → variance_source 'caller_supplied'");
+
+// Test 1s: empty object input → insufficient_data
+const bw_emptyObj = bullwhipDiagnose({});
+assert(bw_emptyObj.status === "insufficient_data", "Empty object input → status 'insufficient_data'");
+
+// Test 1t: VARIANCE_STRATEGIES catalog is well-formed
+assert(VARIANCE_STRATEGIES.length === 3, "VARIANCE_STRATEGIES → exactly 3 strategies");
+assert(VARIANCE_STRATEGIES.every((s) => !!s.id && !!s.best_for && !!s.meaning),
+       "VARIANCE_STRATEGIES → every strategy has id/best_for/meaning");
+
+// Test 1u: amplification_path is populated and consistent with amplification_map
+assert(typeof (bw_amp as any).amplification_path === "object", "Diagnosis → amplification_path object present");
+assert((bw_amp as any).amplification_path.origin_layer === bw_amp.amplification_map.origin_layer,
+       "amplification_path → origin_layer matches amplification_map");
+assert(typeof (bw_amp as any).amplification_path.origin_event_index === "number" &&
+       (bw_amp as any).amplification_path.origin_event_index >= 0,
+       "amplification_path → origin_event_index resolves to a real entry");
+assert(typeof (bw_amp as any).amplification_path.origin_reason === "string" &&
+       (bw_amp as any).amplification_path.origin_reason.length > 0,
+       "amplification_path → origin_reason is explained");
+assert(Array.isArray((bw_amp as any).amplification_path.evidence_chain),
+       "amplification_path → evidence_chain is an array");
+
+// Test 1v: amplification_path evidence stages are layer transitions
+const ampChainStages = (bw_amp as any).amplification_path.evidence_chain.map((e: any) => e.stage);
+assert(ampChainStages.every((s: string) => s.includes("_to_")),
+       "amplification_path → every evidence stage is a layer transition");
+
+// Test 1w: diagnostic_completeness is a fixed-rule score
+const dc_amp = (bw_amp as any).diagnostic_completeness;
+assert(typeof dc_amp === "object", "Diagnosis → diagnostic_completeness object present");
+assert(dc_amp.score >= 0 && dc_amp.score <= 1, `diagnostic_completeness → score in [0,1] (got ${dc_amp.score})`);
+assert(["high", "medium", "low"].includes(dc_amp.data_quality), "diagnostic_completeness → data_quality is high/medium/low");
+assert(Array.isArray(dc_amp.scoring_breakdown) && dc_amp.scoring_breakdown.length === 5,
+       "diagnostic_completeness → 5-component scoring breakdown");
+assert(Array.isArray(dc_amp.limitations) && dc_amp.limitations.length > 0,
+       "diagnostic_completeness → limitations listed");
+
+// Test 1x: diagnostic_completeness score responds to inputs (connected_systems raises it)
+const dc_clean = (bw_clean as any).diagnostic_completeness;
+assert(dc_amp.score > dc_clean.score,
+       `diagnostic_completeness → connected_systems raises score (amp ${dc_amp.score} > clean ${dc_clean.score})`);
+
+// Test 1y: expected_behavior raises the diagnostic_completeness score
+const dcLogSample = [
+  { timestamp: "2026-05-14T10:00:00Z", input_summary: "x", decision_made: "y", outcome: "error" as const, variance_score: 1.5 },
+  { timestamp: "2026-05-14T10:05:00Z", input_summary: "x", decision_made: "y", outcome: "error" as const, variance_score: 2.0 },
+];
+const bw_withExpected = bullwhipDiagnose({ decision_log: dcLogSample, expected_behavior: "Agent should have held position instead of doubling down" });
+const bw_withoutExpected = bullwhipDiagnose({ decision_log: dcLogSample });
+assert((bw_withExpected as any).diagnostic_completeness.score > (bw_withoutExpected as any).diagnostic_completeness.score,
+       "diagnostic_completeness → expected_behavior raises score");
+
+// Test 1z: diagnostic_completeness scoring is deterministic
+const bw_withExpectedRepeat = bullwhipDiagnose({ decision_log: dcLogSample, expected_behavior: "Agent should have held position instead of doubling down" });
+assert(JSON.stringify((bw_withExpected as any).diagnostic_completeness) === JSON.stringify((bw_withExpectedRepeat as any).diagnostic_completeness),
+       "diagnostic_completeness → deterministic for identical input");
+
+// Test 1aa: counterfactual is descriptive, NOT a prevention/causation claim
+const cf = (bw_amp as any).counterfactual;
+assert(typeof cf === "string" && cf.length > 0, "Diagnosis → counterfactual string present");
+const forbiddenClaims = ["prevented", "avoided the loss", "stopped the failure", "would have avoided"];
+assert(forbiddenClaims.every((phrase) => !cf.toLowerCase().includes(phrase)),
+       "counterfactual → no prevention/causation claims (diagnostic tool, not a guard)");
+
+// Test 1ab: diagnostic_report surfaces the new sections
+assert(bw_amp.diagnostic_report.includes("Amplification Path:"), "diagnostic_report → includes Amplification Path section");
+assert(bw_amp.diagnostic_report.includes("Diagnostic Completeness:"), "diagnostic_report → includes Diagnostic Completeness section");
+assert(bw_amp.diagnostic_report.includes("Counterfactual:"), "diagnostic_report → includes Counterfactual section");
 
 // ═══════════════════════════════════════════════════════════════
 // 2. ANCHOR CLASSIFY
@@ -723,6 +882,70 @@ if (pipe_stop.pipeline_status === "flag" || pipe_stop.pipeline_status === "block
 // Test 6i: Confidence propagated from anchor stage
 assert(typeof pipe_clean.confidence === "number" && pipe_clean.confidence >= 0 && pipe_clean.confidence <= 1,
        `Pipeline confidence in [0,1] (got ${pipe_clean.confidence})`);
+
+// ═══════════════════════════════════════════════════════════════
+// 7. COUNTERFACTUAL & HONESTY CHECKS (cross-cutting)
+// ═══════════════════════════════════════════════════════════════
+section("7. counterfactual & honesty checks");
+
+// Incident-level overclaiming phrases. This is a diagnostic/middleware
+// package, not a proven incident-prevention system — reports must describe
+// what would stay UNSEEN, never claim they "prevented" a specific outcome.
+const FORBIDDEN_CLAIMS = [
+  "prevented the accident",
+  "prevented the loss",
+  "prevented the failure",
+  "would have prevented",
+  "avoided the loss",
+  "would have avoided",
+  "stopped the failure",
+];
+
+function hasForbiddenClaim(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const phrase of FORBIDDEN_CLAIMS) {
+    if (lower.includes(phrase)) return phrase;
+  }
+  return null;
+}
+
+// Test 7a: anchor_classify report carries a descriptive counterfactual
+const cf_anchor = anchorClassify({ raw_input: "maybe delete the old logs?", input_type: "prompt" });
+assert(cf_anchor.diagnostic_report.includes("Counterfactual:"), "anchor report → has Counterfactual section");
+assert(hasForbiddenClaim(cf_anchor.diagnostic_report) === null,
+       `anchor report → no incident-level overclaiming (${hasForbiddenClaim(cf_anchor.diagnostic_report)})`);
+
+// Test 7b: logic_sequence report carries a descriptive counterfactual
+const cf_logic = logicSequence({ isolated_signal: "refactor the billing module", input_type: "prompt", context_window: ["legacy code"] });
+assert(cf_logic.diagnostic_report.includes("Counterfactual:"), "logic report → has Counterfactual section");
+assert(hasForbiddenClaim(cf_logic.diagnostic_report) === null, "logic report → no incident-level overclaiming");
+
+// Test 7c: mesh_simulate report carries a descriptive counterfactual
+const cf_mesh = meshSimulate({ recommendation: "drop the users table", action_type: "deletion", risk_horizon: "immediate", context_window: ["production database"] });
+assert(cf_mesh.diagnostic_report.includes("Counterfactual:"), "mesh report → has Counterfactual section");
+assert(hasForbiddenClaim(cf_mesh.diagnostic_report) === null, "mesh report → no incident-level overclaiming");
+
+// Test 7d: gate_validate report carries a descriptive counterfactual
+const cf_gate = gateValidate({
+  recommendation: "delete all archived records",
+  risk_score: 60, confidence: 0.8, action_type: "deletion",
+  principles: [{ id: "P001", rule: "No deletion without review", threshold: "contains delete", on_violation: "escalate" }],
+  decision_timestamp: "2026-01-01T00:00:00.000Z",
+});
+assert(cf_gate.diagnostic_report.includes("Counterfactual:"), "gate report → has Counterfactual section");
+assert(hasForbiddenClaim(cf_gate.diagnostic_report) === null, "gate report → no incident-level overclaiming");
+
+// Test 7e: gate counterfactual reflects the actual decision path
+assert(/human review|audit trail|to execution/.test(cf_gate.diagnostic_report),
+       "gate counterfactual → describes the actual decision path");
+
+// Test 7f: pipeline report (aggregates all stage reports) stays descriptive
+assert(pipe_clean.diagnostic_report.includes("Counterfactual:"), "pipeline report → stage counterfactuals are included");
+assert(hasForbiddenClaim(pipe_clean.diagnostic_report) === null, "pipeline report → no incident-level overclaiming");
+
+// Test 7g: bullwhip_diagnose report also stays descriptive
+assert(hasForbiddenClaim(bw_amp.diagnostic_report) === null, "bullwhip report → no incident-level overclaiming");
+assert(hasForbiddenClaim((bw_amp as any).counterfactual) === null, "bullwhip counterfactual field → descriptive, not a prevention claim");
 
 // ═══════════════════════════════════════════════════════════════
 // SUMMARY

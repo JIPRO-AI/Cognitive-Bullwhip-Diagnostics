@@ -27,6 +27,12 @@ interface PipelineInput {
   context_window?: string[];
   principles?: PrincipleConfig[];
   confidence_floor?: number;
+  /**
+   * Optional fixed audit timestamp (ISO8601), passed through to the
+   * PrincipleGate stage. When provided, the whole pipeline output is
+   * deterministic. When omitted, PrincipleGate stamps runtime.
+   */
+  decision_timestamp?: string;
 }
 
 export function scPipeline(input: PipelineInput) {
@@ -36,6 +42,7 @@ export function scPipeline(input: PipelineInput) {
     context_window = [],
     principles = [],
     confidence_floor,
+    decision_timestamp,
   } = input;
 
   const stages: Record<string, unknown> = {};
@@ -115,6 +122,7 @@ export function scPipeline(input: PipelineInput) {
     context_window,
     principles,
     confidence_floor,
+    decision_timestamp,
   });
   stages.principle_gate = gateResult;
 

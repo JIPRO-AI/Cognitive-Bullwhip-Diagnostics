@@ -84,6 +84,7 @@ const gv = gateValidate({
     { id: "P001", rule: "Standard operations", threshold: "risk > 80", on_violation: "block" },
     { id: "P003", rule: "Refunds above $500 require human approval", threshold: "amount > 500", on_violation: "escalate" },
   ],
+  decision_timestamp: "2026-01-01T00:00:00.000Z",
 });
 console.log(gv.diagnostic_report);
 
@@ -98,6 +99,7 @@ const gvN = gateValidate({
   principles: [
     { id: "P007", rule: "Block all deletion attempts", threshold: "contains delete", on_violation: "block" },
   ],
+  decision_timestamp: "2026-01-01T00:00:00.000Z",
 });
 console.log(gvN.diagnostic_report);
 

@@ -1,0 +1,18 @@
+{
+  "title": "Trading bot bullwhip (Kalshi case, compressed)",
+  "scenario": "A crypto trading agent treats a series of weak, repeated market signals as strong actionable commands, sizes up the same-direction trade each time, and the loss compounds at every step. This is a condensed slice of the real $2000 -> $396 drawdown incident.",
+  "tool": "bullwhip_diagnose",
+  "input": {
+    "raw_events": [
+      { "timestamp": "2026-02-26T10:00:00Z", "input": "BTC moved +0.3%", "decision": "Logged signal, no action", "outcome": "as expected" },
+      { "timestamp": "2026-02-26T10:05:00Z", "input": "BTC moved +0.2%, same weak signal", "decision": "Opened YES position", "outcome": "unexpected, position underwater" },
+      { "timestamp": "2026-02-26T10:10:00Z", "input": "BTC flat, same weak signal re-read", "decision": "Doubled the YES position", "outcome": "Lost position, -$80" },
+      { "timestamp": "2026-02-26T10:15:00Z", "input": "PnL down, negative feedback ignored", "decision": "Opened a recovery trade", "outcome": "failed execution, -$240 drawdown" },
+      { "timestamp": "2026-02-26T10:20:00Z", "input": "Account near margin call", "decision": "Final all-in recovery trade", "outcome": "Liquidated, -$1600 total loss" }
+    ],
+    "variance_strategy": "execution_loss",
+    "expected_behavior": "Stop trading after the first losing position; never size up on a weak, repeated signal",
+    "system_context": { "agent_count": 1, "connected_systems": ["kalshi", "order-dispatcher"], "observation_window": "last_1h" }
+  },
+  "what_to_notice": "The Amplification Path section shows WHERE it started (a minor input signal treated as actionable) and how output variance grew across the layer boundaries it crossed. The Counterfactual line states what would stay unattributed without the diagnosis -- it does NOT claim the tool would have prevented the loss. Diagnostic Completeness tells you how much to trust this read given the inputs."
+}

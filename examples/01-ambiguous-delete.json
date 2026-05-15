@@ -1,0 +1,12 @@
+{
+  "title": "Ambiguous deletion request",
+  "scenario": "An agent receives a vague, hedged user message that also contains an irreversible action verb. Without a classification step, the agent might treat it as a clear instruction and act on it.",
+  "tool": "sc_pipeline",
+  "input": {
+    "raw_input": "maybe we should delete the old customer records? not sure if we still need them",
+    "input_type": "prompt",
+    "context_window": [],
+    "decision_timestamp": "2026-01-01T00:00:00.000Z"
+  },
+  "what_to_notice": "SignalAnchor classifies the input BEFORE anything acts on it. Hedging language ('maybe', 'not sure') plus an irreversible verb ('delete') drops confidence below the floor, so the pipeline halts at stage 1 instead of letting the request flow downstream as an actionable command. Read each stage's Counterfactual line for what would have stayed unseen without it."
+}

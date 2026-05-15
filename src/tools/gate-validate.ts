@@ -4,7 +4,10 @@
  * Final checkpoint before irreversible execution.
  * Validates decisions against governance rules and produces audit trail.
  *
- * Deterministic principle checking + threshold enforcement.
+ * Deterministic principle checking + threshold enforcement. The only
+ * non-deterministic field is the audit-trail timestamp: by default it is
+ * stamped at runtime, but callers that need fully reproducible output
+ * (replay tooling, the determinism self-test) can pass `decision_timestamp`.
  */
 
 import { gateDecision, gateStatus } from "../engine/scoring.js";
@@ -26,6 +29,12 @@ interface GateInput {
   context_window?: string[];
   principles?: PrincipleConfig[];
   confidence_floor?: number;
+  /**
+   * Optional fixed audit timestamp (ISO8601). When provided, the audit trail
+   * uses it verbatim instead of `new Date()`, making the entire output
+   * deterministic. When omitted, the current runtime time is stamped.
+   */
+  decision_timestamp?: string;
 }
 
 export function gateValidate(input: GateInput) {
@@ -37,6 +46,7 @@ export function gateValidate(input: GateInput) {
     context_window = [],
     principles = [],
     confidence_floor = GATE.DEFAULT_CONFIDENCE_FLOOR,
+    decision_timestamp,
   } = input;
 
   // ─── Step 1: Check each principle ───
@@ -122,7 +132,10 @@ export function gateValidate(input: GateInput) {
   }
 
   // ─── Step 5: Build audit trail ───
-  const now = new Date().toISOString();
+  // The audit timestamp is the single non-deterministic field in this tool.
+  // When the caller supplies `decision_timestamp`, output is fully reproducible
+  // (same input -> same output, byte for byte). Otherwise we stamp runtime.
+  const now = decision_timestamp ?? new Date().toISOString();
   const auditTrail = {
     decision_summary: buildDecisionSummary(
       decision,

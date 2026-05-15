@@ -86,7 +86,7 @@ design.
   - Reports which stages ran, which were skipped, and where the pipeline stopped.
 
 - Why this maps:
-  - Hybrid Mind's design principle: *signal must be classified before reasoning can proceed; reasoning must be validated before impact simulation; impact must be assessed before governance gate*. The order matters and the short-circuit matters.
+  - Hybrid Mind's design principle: *signal must be classified before reasoning can proceed; reasoning must be validated before impact estimation; impact must be assessed before governance gate*. The order matters and the short-circuit matters.
 
 ---
 

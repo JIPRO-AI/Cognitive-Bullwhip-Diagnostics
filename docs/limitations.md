@@ -65,21 +65,35 @@ with a sentence-level negation parser.
 
 ---
 
-## 4. Bullwhip variance is caller-supplied
+## 4. Bullwhip variance is caller-defined, not package-invented
 
-`bullwhip_diagnose` takes a `DecisionEntry[]` with `variance_score` as a
-required field. **The package does not compute variance for you.** You
-decide what variance means in your decision log:
+`bullwhip_diagnose` never decides what "variance" means for your domain.
+There are two supported ways to provide it, and both keep the definition in
+your hands:
 
-- PnL volatility
-- Decision flip-flopping (e.g. how often classification reverses between runs)
-- Output divergence from expected schema
-- Time-to-resolution variance
-- ... or any custom proxy
+1. **Pre-scored `decision_log`** — you pass `DecisionEntry[]` with a
+   `variance_score` you computed yourself (PnL volatility, schema divergence,
+   time-to-resolution variance, decision flip-flopping, or any custom proxy).
+2. **`raw_events` + `variance_strategy`** — you pass a loose event log and
+   *select* one of three fixed strategies (`outcome_deviation`,
+   `decision_flip`, `execution_loss`). The tool then applies that strategy as
+   a deterministic scoring rule (`src/engine/variance.ts`). It does **not**
+   estimate variance on its own.
 
-Without a meaningful `variance_score` upstream, `bullwhip_diagnose` cannot
-detect amplification. The amplification *ratio* it reports is only as
-reliable as the variance input you feed it.
+If you pass `raw_events` with **no** `variance_strategy`, the tool returns
+`status: "needs_variance_strategy"` with the candidate strategies and does
+not diagnose — selecting the variance definition is a judgement call that
+belongs to the user, because it determines what the whole diagnosis measures.
+
+Consequences:
+
+- The three built-in strategies are **deterministic keyword/structure rules**,
+  not learned models. `execution_loss` keys on loss/error/rollback language,
+  `decision_flip` on opposite-direction decision pairs, `outcome_deviation` on
+  the classified outcome. They are a convenience layer, not ground truth — the
+  `diagnostic_completeness` block in the output says exactly that.
+- Whichever path you use, the amplification *ratio* `bullwhip_diagnose`
+  reports is only as reliable as the variance definition behind it.
 
 ---
 

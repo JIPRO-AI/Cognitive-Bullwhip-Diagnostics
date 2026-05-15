@@ -44,6 +44,11 @@ ${trace.map((t, i) => `
   ${i + 1}. ${t.step.toUpperCase()}
      ${t.result}`).join("")}
 
+Counterfactual:
+  ${r.status === "pass"
+    ? "Without SignalAnchor, this input would still proceed, but with no record that it was checked as a clear, actionable signal rather than noise."
+    : "Without SignalAnchor, this input would have continued into the reasoning stage with its signal type unverified -- an ambiguous or observation-only signal treated as a clear action."}
+
 ${D}
 `.trim();
 }
@@ -87,6 +92,11 @@ ${trace.map((t, i) => `
   ${i + 1}. ${t.step.toUpperCase()}
      ${t.result}`).join("")}
 
+Counterfactual:
+  ${r.status === "pass"
+    ? "Without LogicStack, there would be no record that the full Context -> Retrieval -> Analysis -> Action sequence ran before this action."
+    : "Without LogicStack, the skipped reasoning step(s) would go unrecorded and the action would proceed on an incomplete Context -> Retrieval -> Analysis -> Action sequence."}
+
 ${D}
 `.trim();
 }
@@ -106,7 +116,7 @@ export function meshReport(r: Record<string, unknown>): string {
 
   return `
 ${D}
-CAUSAL MESH -- IMPACT SIMULATION
+CAUSAL MESH -- IMPACT ESTIMATION
 ${D}
 
 Status:      ${statusIcon}
@@ -134,10 +144,15 @@ ${payload.requires_modification ? `Adjusted Recommendation:
 Modification Reason:
   ${payload.modification_reason}` : `Recommendation: No modification needed. Original action is safe to proceed.`}
 
-Simulation Trace:
+Estimation Trace:
 ${trace.map((t, i) => `
   ${i + 1}. ${t.step.toUpperCase()}
      ${t.result}`).join("")}
+
+Counterfactual:
+  ${r.status === "pass"
+    ? "Without CausalMesh, this action's downstream blast radius would be unexamined -- here it was estimated as low-risk."
+    : "Without CausalMesh, this action would proceed with no estimate of the downstream systems it touches."}
 
 ${D}
 `.trim();
@@ -184,6 +199,13 @@ Audit Trace:
 ${trace.map((t, i) => `
   ${i + 1}. ${t.step.toUpperCase()}
      ${t.result}`).join("")}
+
+Counterfactual:
+  ${r.final_decision === "block"
+    ? "Without PrincipleGate, this action would have proceeded to execution instead of being held."
+    : r.final_decision === "escalate"
+      ? "Without PrincipleGate, this action would have proceeded autonomously instead of being routed for human review."
+      : "Without PrincipleGate, this action would still proceed, but with no audit trail of the principles it was checked against."}
 
 ${D}
 `.trim();

@@ -4,7 +4,8 @@ Deterministic MCP middleware for diagnosing and containing reasoning amplificati
 
 [![CI](https://github.com/JIPRO589/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml/badge.svg)](https://github.com/JIPRO589/Cognitive-Bullwhip-Diagnostics/actions/workflows/test.yml)
 [![MCP Compatible](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io/)
-[![Tests](https://img.shields.io/badge/tests-117%20passing-green)]()
+[![Tests](https://img.shields.io/badge/tests-181%20passing-green)]()
+[![Determinism](https://img.shields.io/badge/determinism-self--tested-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > ⚠️ **Alpha** — retrospective validation only, not yet benchmarked. The
@@ -25,16 +26,20 @@ Deterministic MCP middleware for diagnosing and containing reasoning amplificati
 
 **Quick proof:**
 
-- 6 MCP tools — signal classification, reasoning enforcement, impact simulation, governance gating
-- 57 end-to-end scenarios / 117 assertions — all deterministic, all passing
+- 6 MCP tools — signal classification, reasoning sequence checks, impact estimation, governance gating
+- 87 end-to-end scenarios / 181 assertions — all deterministic, all passing
+- A dedicated determinism self-test — runs every tool 100× and asserts byte-identical output (`npm run test:determinism`)
 - 1 real-world case study — Kalshi crypto trading bot (-80% drawdown diagnosed)
-- Deterministic outputs — same input always produces same output, no stochastic variance
+- 3 runnable example scenarios — `npm run demo:replay` replays them through the real tools
+
+**See it in 60 seconds:** `git clone … && npm install && npm run demo:replay`
 
 ---
 
 ## What It Does
 
-- Diagnoses amplification risk from input to downstream action
+- Diagnoses amplification risk from input to downstream action — accepts either a pre-scored `decision_log` or a loose `raw_events` log (you pick how "variance" is defined; the tool never guesses it)
+- Traces the amplification path: where it started, how it propagated layer to layer, and how complete the diagnosis is given your inputs
 - Checks the required reasoning sequence (context → retrieval → analysis → action)
 - Classifies ambiguous inputs before they enter execution
 - Estimates downstream blast radius across connected systems (keyword-based heuristic)
@@ -90,7 +95,7 @@ Raw Input
     Final Decision: execute / escalate / block
 ```
 
-`bullwhip_diagnose` operates separately as a **historical diagnostic** — it scans decision logs for amplification patterns and recommends which pipeline tool to deploy.
+`bullwhip_diagnose` operates separately as a **historical diagnostic** — it scans a decision log (or a loose `raw_events` log you supply) for amplification patterns, traces the amplification path, scores how complete the diagnosis is, and recommends which pipeline tool to deploy.
 
 `sc_pipeline` chains all four core tools with **automatic gating** — if any stage returns `block` or `flag`, downstream stages are skipped and the blocking reason is propagated.
 
@@ -233,28 +238,56 @@ Raw Input
 
 ### `bullwhip_diagnose` — Historical Diagnostic
 
+Accepts **either** a pre-scored `decision_log` **or** a loose, paste-friendly
+`raw_events` log. With `raw_events` you also pick a `variance_strategy` (what
+"variance" means for your domain) — if you omit it, the tool returns the
+candidate strategies and does **not** diagnose. It never picks a variance
+definition for you.
+
 ```json
-// Input: decision log with variance scores
-// Output
+// Input: a loose agent event log + a chosen variance strategy
 {
+  "raw_events": [
+    { "timestamp": "t1", "input": "BTC +0.3%",         "decision": "Logged signal",        "outcome": "as expected" },
+    { "timestamp": "t2", "input": "same weak signal",  "decision": "Opened YES position",  "outcome": "unexpected, underwater" },
+    { "timestamp": "t3", "input": "same signal again", "decision": "Doubled the position", "outcome": "Lost position, -$80" }
+  ],
+  "variance_strategy": "execution_loss",
+  "expected_behavior": "Stop trading after the first loss",
+  "system_context": { "connected_systems": ["kalshi"] }
+}
+
+// Output (abridged — computed values depend on the input)
+{
+  "status": "diagnosed",
   "bullwhip_active": true,
   "severity": "critical",
-  "severity_score": 100,
+  "variance_source": "execution_loss",
   "pattern_type": "noise_sensitivity",
-  "amplification_map": {
+  "amplification_map": { "origin_layer": "input", "amplification_chain": [ /* per-layer ratios */ ] },
+  "amplification_path": {
     "origin_layer": "input",
-    "amplification_chain": [
-      { "layer": "input",     "input_variance": 0.021, "output_variance": 0.193, "amplification_ratio": 18.75 },
-      { "layer": "reasoning", "input_variance": 0.496, "output_variance": 1.474, "amplification_ratio": 5.33 },
-      { "layer": "execution", "input_variance": 0.353, "output_variance": 2.650, "amplification_ratio": 7.62 }
-    ]
+    "origin_event_index": 0,
+    "origin_reason": "The input layer shows the widest gap between input and output variance...",
+    "evidence_chain": [ { "stage": "input_to_execution", "evidence": "Average output variance amplified..." } ]
   },
-  "recommended_intervention": {
-    "primary_skill": "signal-anchor",
-    "urgency": "immediate"
-  }
+  "diagnostic_completeness": {
+    "score": 0.7,
+    "data_quality": "medium",
+    "scoring_breakdown": [ /* fixed-rule points per component */ ],
+    "limitations": [ "...", "Layer assignment is heuristic, not a traced execution graph." ],
+    "recommended_next_input": [ "Add more decisions (5-10+) so the amplification pattern is visible." ]
+  },
+  "counterfactual": "Without this diagnosis, the amplification at the input layer would keep compounding with its origin and pattern unattributed.",
+  "recommended_intervention": { "primary_skill": "signal-anchor", "urgency": "immediate" }
 }
 ```
+
+> Passing `raw_events` **without** `variance_strategy` returns
+> `{ "status": "needs_variance_strategy", "variance_strategy_candidates": [...] }`.
+> Show the candidates to the user, let them choose, then re-run. The
+> `counterfactual` line and `diagnostic_completeness` block are descriptive,
+> not prevention claims — this is a diagnostic tool, not a guard.
 
 ### `sc_pipeline` — Full Auto-Gating Pipeline
 
@@ -281,15 +314,19 @@ Raw Input
 
 ## Test Matrix
 
-| Tool | Tests | Focus |
+| Tool | Assertions | Focus |
 |------|------:|-------|
-| `bullwhip_diagnose` | 13 | Empty/clean/amplified logs, severity scoring, pattern detection, trace generation |
-| `anchor_classify` | 11 | Ambiguous signals, clear actions, spike detection, dangerous + uncertain combos |
-| `logic_sequence` | 8 | Full/missing context, structural risk, step completion, confidence scoring |
-| `mesh_simulate` | 8 | Low-risk queries, batch deletions, API calls, risk node detection |
-| `gate_validate` | 12 | Principle passing, violation escalation, auto-block, low confidence, morphology matching |
-| `sc_pipeline` | 6 | Clean pass-through, ambiguous stop, gate escalation, multi-stage gating |
-| **Total** | **58** | **All deterministic — same input always produces same output** |
+| `bullwhip_diagnose` | 70 | Empty/clean/amplified logs, `raw_events` conversion, variance strategies, amplification path, diagnostic completeness, severity & pattern detection |
+| `anchor_classify` | 27 | Ambiguous signals, clear actions, spike detection, dangerous + uncertain combos, negation context |
+| `logic_sequence` | 14 | Full/missing context, structural risk, step completion, confidence scoring |
+| `mesh_simulate` | 17 | Low-risk queries, batch deletions, API calls, risk node detection |
+| `gate_validate` | 24 | Principle passing, violation escalation, auto-block, low confidence, morphology + negation matching, timestamp determinism |
+| `sc_pipeline` | 16 | Clean pass-through, ambiguous stop, gate escalation, multi-stage gating |
+| counterfactual & honesty | 13 | Every report carries a descriptive counterfactual; no incident-level overclaiming |
+| **Total** | **181** | **All deterministic — same input always produces same output** |
+
+Plus a separate **determinism self-test** (`npm run test:determinism`, 10 checks):
+runs each tool 100× and asserts the output hash is identical every time.
 
 ---
 
@@ -324,6 +361,23 @@ This package is the **deterministic containment layer** for that amplification.
 
 ## Quick Start
 
+### See it work first (60 seconds)
+
+```bash
+git clone https://github.com/JIPRO589/Cognitive-Bullwhip-Diagnostics.git
+cd Cognitive-Bullwhip-Diagnostics
+npm install
+npm run demo:replay
+```
+
+`demo:replay` runs the three scenarios in [`examples/`](examples/) — an
+ambiguous deletion request, a compressed Kalshi trading-bot bullwhip, and a
+thin-context production update — through the real tools and prints each
+tool's human-readable report. Nothing is mocked; the same inputs always
+produce the same reports.
+
+### Use it as an MCP server
+
 Run directly from GitHub — no npm publish required. The `prepare` script
 builds the TypeScript on install:
 
@@ -354,8 +408,8 @@ Add to your MCP client configuration (Claude Desktop, Cursor, etc.):
 
 ## Design Principles
 
-- **100% Deterministic**: All scoring uses pure threshold-based analysis — no LLM calls inside any tool. Same input always produces same output.
-- **Dual-block Output**: Each tool returns (1) human-readable diagnostic report + (2) structured JSON — for both auditability and programmatic use.
+- **100% Deterministic**: All scoring uses pure threshold-based analysis — no LLM calls inside any tool. Same input always produces same output, and `npm run test:determinism` proves it by hashing 100 runs of every tool. The only generated value anywhere is the `gate_validate` audit timestamp, which accepts an optional fixed `decision_timestamp` for byte-reproducible output.
+- **Dual-block Output**: Each tool returns (1) human-readable diagnostic report + (2) structured JSON — for both auditability and programmatic use. Every report ends with a descriptive `Counterfactual` line — what would have stayed unseen without the tool — never a claim that it "prevented" anything.
 - **Auto-gating Pipeline**: If any stage blocks, downstream stages are skipped. Signal must be classified before reasoning can proceed.
 - **Morphology-aware Matching**: Keyword detection catches inflected forms (e.g., "deletion" from "delete", "overwritten" from "overwrite") — critical for governance validation in natural language contexts.
 - **Negation Context Detection**: `gate_validate` ignores keyword matches preceded by negation markers ("do not delete", "prevent deletion", "without overwriting") within a short window — prevents false-positive violations on protective phrasing while still catching un-negated violations later in the same text.
@@ -438,7 +492,8 @@ should plan around:
 - **Anchor uses substring matching.** Dangerous-action detection in `anchor_classify` is substring-based and English-only. It catches "delete" / "deletion" / "removal" / "destruction" but does not handle arbitrary morphology or non-English input. Full morphological handling lives in `gate_validate`.
 - **Negation handling is window-based.** Both `anchor_classify` (intent-inversion detection near dangerous verbs) and `gate_validate` (false-positive suppression) look at a ~30–40 character window before a match. Distant or complex negations ("we will not, under any circumstances spanning more than thirty words of qualification, delete X") may not be detected.
 - **Case study is retrospective.** The Kalshi diagnosis demonstrates *what the tools would have caught* in a real failure. It does not prove prospective prevention rates in production. Treat false-positive and false-negative rates as your own measurement problem.
-- **Bullwhip variance is caller-supplied.** `bullwhip_diagnose` requires `variance_score` on each `DecisionEntry`. The package does not compute variance for you — you decide what variance means in your decision log.
+- **Bullwhip variance is caller-defined.** `bullwhip_diagnose` never invents what "variance" means. You either supply a `variance_score` on each `decision_log` entry, or pass `raw_events` plus a `variance_strategy` you selected — the tool then applies that strategy as a fixed deterministic rule. Passing `raw_events` with no strategy returns the candidates and stops. The diagnosis is only as meaningful as the variance definition you chose.
+- **Diagnostic completeness is a heuristic score.** The `diagnostic_completeness` block uses a fixed point table (entry count, variance basis, system context, expected behavior). It tells you how *complete your inputs* are — not whether the diagnosis is *correct*.
 - **MCP-shaped integration.** Tools target the Model Context Protocol. They work standalone (direct function calls in tests) but the recommended integration path is via MCP-compatible clients. LangChain / CrewAI / AutoGen direct adapters are not bundled (open contribution welcome).
 
 Full discussion in [`docs/limitations.md`](docs/limitations.md).
@@ -477,7 +532,9 @@ See [Kalshi Crypto Trading Bot — Full Diagnosis](docs/case-studies/kalshi-bull
 
 ```bash
 npm install
-npm test     # 57 scenarios / 117 assertions across all 6 tools
+npm test                  # e2e (181 assertions) + determinism self-test (10 checks)
+npm run test:e2e          # 87 scenarios / 181 assertions across all 6 tools
+npm run test:determinism  # runs every tool 100x, asserts byte-identical output
 ```
 
 ---
@@ -488,9 +545,10 @@ npm test     # 57 scenarios / 117 assertions across all 6 tools
 git clone https://github.com/JIPRO589/Cognitive-Bullwhip-Diagnostics.git
 cd Cognitive-Bullwhip-Diagnostics
 npm install
-npm run dev     # Development mode (tsx)
-npm run build   # TypeScript compile
-npm test        # 57 scenarios / 117 assertions
+npm run dev          # Development mode (tsx)
+npm run build        # TypeScript compile
+npm run demo:replay  # Replay the examples/ scenarios through the real tools
+npm test             # e2e + determinism self-test
 ```
 
 ---

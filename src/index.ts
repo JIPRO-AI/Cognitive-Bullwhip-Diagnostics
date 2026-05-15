@@ -38,7 +38,7 @@ import {
 
 const server = new McpServer({
   name: "structured-cognition",
-  version: "1.0.0",
+  version: "1.2.0",
 });
 
 // ─── Shared LLM guidance (prepended to every tool description) ───
@@ -67,12 +67,11 @@ server.tool(
 
 WHEN TO USE: User says things like "run bullwhip", "diagnose my agent", "why does it keep failing", "where is the logic jumping", "find where the error started".
 
-HOW TO BUILD decision_log: Look at the agent's recent decisions in the conversation (actions taken, results observed, errors hit). For each decision, estimate:
-- timestamp: when it happened (approximate is fine)
-- input_summary: what the agent received
-- decision_made: what the agent did
-- outcome: "expected" if it worked, "unexpected" if the result was surprising, "error" if it failed
-- variance_score: how far off the output was from what was expected (0.0 = perfect, 1.0+ = way off)
+TWO WAYS TO PROVIDE INPUT (pick one):
+1. decision_log — structured decisions you have ALREADY variance-scored. Each entry: timestamp, input_summary, decision_made, outcome (expected/unexpected/error), variance_score (0.0 = perfect, 1.0+ = way off).
+2. raw_events — a looser, paste-friendly agent log (timestamp optional; input, decision, free-text outcome; optional notes). Easier to build from a real log. If you pass raw_events you MUST also pass variance_strategy.
+
+ABOUT variance_strategy: it defines what "variance" means for this diagnosis, and that choice shapes the entire result. DO NOT pick it yourself. If you pass raw_events without variance_strategy, the tool returns candidate strategies — show them to the USER, let the user choose, then re-run.
 ${LLM_GUIDE}`,
   {
     decision_log: z
@@ -90,8 +89,39 @@ ${LLM_GUIDE}`,
             .describe("Output variance score (0.0 = expected, 1.0+ = way off)"),
         })
       )
-      .min(1)
-      .describe("Recent agent decisions to analyze"),
+      .optional()
+      .describe(
+        "Structured, already variance-scored agent decisions. Provide this OR raw_events."
+      ),
+    raw_events: z
+      .array(
+        z.object({
+          timestamp: z
+            .string()
+            .optional()
+            .describe("ISO8601 timestamp (optional)"),
+          input: z.string().describe("What the agent received"),
+          decision: z.string().describe("What the agent did"),
+          outcome: z.string().describe("Free-text result of the decision"),
+          notes: z.string().optional().describe("Optional extra context"),
+        })
+      )
+      .optional()
+      .describe(
+        "Loose, paste-friendly agent log WITHOUT variance scores. Provide this OR decision_log. Requires variance_strategy — without it the tool returns strategy candidates for the user to choose."
+      ),
+    variance_strategy: z
+      .enum(["outcome_deviation", "decision_flip", "execution_loss"])
+      .optional()
+      .describe(
+        "How to derive variance_score from raw_events. REQUIRED when raw_events is used. Do NOT choose this yourself — let the user pick from the candidates the tool returns."
+      ),
+    expected_behavior: z
+      .string()
+      .optional()
+      .describe(
+        "What the agent SHOULD have done — a one-line baseline for the diagnosis. Optional, but providing it raises the diagnostic_completeness score."
+      ),
     system_context: z
       .object({
         agent_count: z.number().int().min(1).default(1),
@@ -101,8 +131,23 @@ ${LLM_GUIDE}`,
       .optional()
       .describe("System context for the analysis"),
   },
-  async ({ decision_log, system_context }) => {
-    const result = bullwhipDiagnose(decision_log, system_context);
+  async ({
+    decision_log,
+    raw_events,
+    variance_strategy,
+    expected_behavior,
+    system_context,
+  }) => {
+    const result = bullwhipDiagnose(
+      {
+        decision_log,
+        raw_events,
+        variance_strategy,
+        expected_behavior,
+        system_context,
+      },
+      system_context
+    );
     return {
       content: [
         {
@@ -302,6 +347,12 @@ ${LLM_GUIDE}`,
       .max(1)
       .optional()
       .describe("Custom confidence floor (default: 0.70)"),
+    decision_timestamp: z
+      .string()
+      .optional()
+      .describe(
+        "Optional fixed ISO8601 audit timestamp. Omit for normal use (runtime is stamped). Provide a fixed value only for replay or reproducibility testing — it makes the entire output deterministic."
+      ),
   },
   async ({
     recommendation,
@@ -311,6 +362,7 @@ ${LLM_GUIDE}`,
     context_window,
     principles,
     confidence_floor,
+    decision_timestamp,
   }) => {
     const result = gateValidate({
       recommendation,
@@ -320,6 +372,7 @@ ${LLM_GUIDE}`,
       context_window,
       principles,
       confidence_floor,
+      decision_timestamp,
     });
     const report = gateReport(result as unknown as Record<string, unknown>);
     return {
@@ -377,6 +430,12 @@ ${LLM_GUIDE}`,
       .max(1)
       .optional()
       .describe("Confidence floor for PrincipleGate"),
+    decision_timestamp: z
+      .string()
+      .optional()
+      .describe(
+        "Optional fixed ISO8601 audit timestamp, passed through to the PrincipleGate stage. Omit for normal use. Provide a fixed value only for replay or reproducibility testing — it makes the entire pipeline output deterministic."
+      ),
   },
   async ({
     raw_input,
@@ -384,6 +443,7 @@ ${LLM_GUIDE}`,
     context_window,
     principles,
     confidence_floor,
+    decision_timestamp,
   }) => {
     const result = scPipeline({
       raw_input,
@@ -391,6 +451,7 @@ ${LLM_GUIDE}`,
       context_window,
       principles,
       confidence_floor,
+      decision_timestamp,
     });
     const report = pipelineReport(result as unknown as Record<string, unknown>);
     return {

@@ -1,7 +1,7 @@
 {
   "name": "@agdp/structured-cognition",
-  "version": "1.1.0",
-  "description": "MCP server for Structured Cognition Protocol — 6 middleware tools that diagnose and fix reasoning failures in AI agent systems",
+  "version": "1.2.0",
+  "description": "MCP server for Structured Cognition Protocol — 6 middleware tools that diagnose and contain reasoning amplification in AI agent systems",
   "type": "module",
   "bin": {
     "structured-cognition": "./dist/index.js"
@@ -11,7 +11,10 @@
     "build": "tsc --noCheck",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "tsx test/e2e-all.ts",
+    "demo:replay": "tsx scripts/demo-replay.ts",
+    "test": "tsx test/e2e-all.ts && tsx test/determinism.ts",
+    "test:e2e": "tsx test/e2e-all.ts",
+    "test:determinism": "tsx test/determinism.ts",
     "prepare": "npm run build"
   },
   "keywords": [
