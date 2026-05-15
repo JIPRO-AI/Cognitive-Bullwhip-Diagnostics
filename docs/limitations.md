@@ -83,6 +83,47 @@ reliable as the variance input you feed it.
 
 ---
 
+## 4a. logic_sequence consistency check is a placeholder
+
+`logic_sequence` does two things:
+
+1. **Sequence check** — verifies the input produced a Context → Retrieval →
+   Analysis → Action sequence with no skipped steps. **This is fully
+   functional.**
+2. **Consistency check** — was meant to compare the current decision against
+   prior decisions on similar input (`aligned` / `diverged` / `no_history`).
+   **This is a placeholder.** There is no persistent cross-call memory, so
+   `checkConsistency()` always returns `no_history`. The `diverged` branch
+   in the code is currently unreachable; it is wired in and reserved for a
+   future persistent-memory backend.
+
+In short: trust `logic_sequence` for "did the agent follow the required
+reasoning steps". Do not rely on it for "is this decision consistent with
+past decisions" — that half is not implemented yet.
+
+---
+
+## 4b. mesh_simulate is keyword-based heuristic estimation, not graph simulation
+
+`mesh_simulate` does **not** read an actual dependency graph of your
+systems. It estimates blast radius by scanning the recommendation and
+context for keywords (`database`, `cache`, `api`, `agent`, `cost`,
+`storage`, etc.) and mapping those to risk nodes.
+
+This means:
+- It catches *named* systems and *common* patterns well.
+- It will **miss** a downstream dependency that is real but not mentioned in
+  the input text.
+- It will **over-flag** if a keyword appears in a context where the system
+  is not actually affected.
+
+Treat the "blast radius" as a *heuristic estimate from the text you
+provided*, not a verified impact map. For real dependency-aware simulation,
+feed `mesh_simulate` a context_window that explicitly lists the dependent
+systems, or use a dedicated infrastructure dependency tracker.
+
+---
+
 ## 5. Case study is retrospective, not prospective
 
 The Kalshi crypto trading case (see `docs/case-studies/`) is a **post-hoc

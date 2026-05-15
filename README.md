@@ -7,6 +7,11 @@ Deterministic MCP middleware for diagnosing and containing reasoning amplificati
 [![Tests](https://img.shields.io/badge/tests-117%20passing-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+> ⚠️ **Alpha** — retrospective validation only, not yet benchmarked. The
+> tooling, tests, and docs are in good shape; what is *not* yet proven is
+> diagnostic accuracy on a labeled dataset. Treat findings as signals to
+> investigate, not verified verdicts. See [`docs/limitations.md`](docs/limitations.md).
+
 ---
 
 ## Status
@@ -30,9 +35,9 @@ Deterministic MCP middleware for diagnosing and containing reasoning amplificati
 ## What It Does
 
 - Diagnoses amplification risk from input to downstream action
-- Enforces reasoning order (context → retrieval → analysis → action)
+- Checks the required reasoning sequence (context → retrieval → analysis → action)
 - Classifies ambiguous inputs before they enter execution
-- Simulates downstream blast radius across connected systems
+- Estimates downstream blast radius across connected systems (keyword-based heuristic)
 - Validates outputs against custom governance principles
 - Supports deterministic auto-gating pipelines with per-stage blocking
 
@@ -60,17 +65,17 @@ Raw Input
          │ (if Action)
          ▼
 ┌──────────────────┐
-│  logic_sequence  │  Reasoning Enforcement
+│  logic_sequence  │  Reasoning Sequence Check
 │  Context →       │  4-step fixed sequence
-│  Retrieval →     │  Historical consistency check
+│  Retrieval →     │  Consistency check (placeholder*)
 │  Analysis →      │  → blocks on step-skip
 │  Action          │
 └────────┬─────────┘
          │ (if pass)
          ▼
 ┌──────────────────┐
-│  mesh_simulate   │  Impact Simulation
-│  Risk 0-100      │  Maps all downstream system nodes
+│  mesh_simulate   │  Impact Estimation
+│  Risk 0-100      │  Keyword-based downstream node detection
 │  Horizon analysis│  → adjusts action if risk > threshold
 └────────┬─────────┘
          │ (if safe)
@@ -88,6 +93,12 @@ Raw Input
 `bullwhip_diagnose` operates separately as a **historical diagnostic** — it scans decision logs for amplification patterns and recommends which pipeline tool to deploy.
 
 `sc_pipeline` chains all four core tools with **automatic gating** — if any stage returns `block` or `flag`, downstream stages are skipped and the blocking reason is propagated.
+
+> \* `logic_sequence`'s consistency check is currently a **placeholder** —
+> there is no persistent cross-call memory, so it always reports `no_history`.
+> The step-sequence check is fully functional; only the historical-consistency
+> comparison is reserved for a future memory backend. See
+> [`docs/limitations.md`](docs/limitations.md).
 
 ---
 
@@ -125,7 +136,7 @@ Raw Input
 }
 ```
 
-### `logic_sequence` — Reasoning Enforcement
+### `logic_sequence` — Reasoning Sequence Check
 
 ```json
 // Input
@@ -151,7 +162,7 @@ Raw Input
 }
 ```
 
-### `mesh_simulate` — Impact Simulation
+### `mesh_simulate` — Impact Estimation
 
 ```json
 // Input
@@ -401,8 +412,8 @@ Each tool corresponds to a published diagnostic concept:
 |------|------------------|------------------------|------------------------|
 | `bullwhip_diagnose` | **Judgment Reproduction Crisis (JRC)** + **Measurement Asymmetry** | [JRC](https://jipro-ai.github.io/profji-library/articles/judgment-reproduction-crisis/) · [measurement-asymmetry](https://jipro-ai.github.io/profji-library/articles/ai-impact-measurement-trap/) | Small errors compound into measurable failure only after the *measurable side* of the asymmetry is exhausted. This tool surfaces the compounding earlier than KPIs can. |
 | `anchor_classify` | **Automation Bias** + Signal Isolation | [automation-bias](https://jipro-ai.github.io/profji-library/articles/automation-bias-decision-making/) | Agents treat hedged or ambiguous input as actionable. Anchor forces signal/noise separation before execution. |
-| `logic_sequence` | **Hybrid Mind** sequencing | [hybrid-mind](https://jipro-ai.github.io/profji-library/articles/hybrid-mind/) | Reasoning drift between runs. LogicStack enforces a canonical Context → Retrieval → Analysis → Action sequence. |
-| `mesh_simulate` | **Multi-Agent Paradox** (partial) | [multi-agent-paradox](https://jipro-ai.github.io/profji-library/articles/multi-agent-paradox/) | Local optimization with hidden cross-system blast radius. Mesh maps downstream nodes before commit. |
+| `logic_sequence` | **Hybrid Mind** sequencing | [hybrid-mind](https://jipro-ai.github.io/profji-library/articles/hybrid-mind/) | Reasoning drift between runs. LogicStack checks that a canonical Context → Retrieval → Analysis → Action sequence is present (historical-consistency comparison is a placeholder — see Limitations). |
+| `mesh_simulate` | **Multi-Agent Paradox** (partial) | [multi-agent-paradox](https://jipro-ai.github.io/profji-library/articles/multi-agent-paradox/) | Local optimization with hidden cross-system blast radius. Mesh estimates downstream nodes via keyword heuristics before commit. |
 | `gate_validate` | Governance / Principle gating | (see Hybrid Mind 4-layer design principle) | Outputs that pass logic but violate declared governance rules. Gate validates against principles with negation-aware keyword matching. |
 | `sc_pipeline` | Pipeline composition | (composite — applies all of the above) | Stage skipping, ad-hoc validation order. Pipeline enforces a fixed order and short-circuits on the first block/flag. |
 
