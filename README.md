@@ -58,48 +58,21 @@ Deterministic MCP middleware for diagnosing and containing reasoning amplificati
 
 ## How It Works
 
-```
-Raw Input
-    │
-    ▼
-┌──────────────────┐
-│  anchor_classify │  Signal Classification
-│  Action / Obs /  │  Noise isolation, confidence scoring
-│  Ambiguous       │  → blocks ambiguous signals
-└────────┬─────────┘
-         │ (if Action)
-         ▼
-┌──────────────────┐
-│  logic_sequence  │  Reasoning Sequence Check
-│  Context →       │  4-step fixed sequence
-│  Retrieval →     │  Consistency check (placeholder*)
-│  Analysis →      │  → blocks on step-skip
-│  Action          │
-└────────┬─────────┘
-         │ (if pass)
-         ▼
-┌──────────────────┐
-│  mesh_simulate   │  Impact Estimation
-│  Risk 0-100      │  Keyword-based downstream node detection
-│  Horizon analysis│  → adjusts action if risk > threshold
-└────────┬─────────┘
-         │ (if safe)
-         ▼
-┌──────────────────┐
-│  gate_validate   │  Governance Validation
-│  Principles check│  Keyword matching (morphology-aware)
-│  Audit trail     │  → blocks/escalates on violation
-└────────┬─────────┘
-         │
-         ▼
-    Final Decision: execute / escalate / block
+```mermaid
+flowchart TD
+    IN([Raw Input])
+    IN --> A["anchor_classify<br/>Signal Classification<br/>Action / Observation / Ambiguous<br/>→ blocks ambiguous signals"]
+    A -->|if Action| L["logic_sequence<br/>Reasoning Sequence Check<br/>Context → Retrieval → Analysis → Action<br/>→ blocks on step-skip"]
+    L -->|if pass| M["mesh_simulate<br/>Impact Estimation<br/>keyword-based downstream node detection<br/>→ adjusts action if risk is too high"]
+    M -->|if safe| G["gate_validate<br/>Governance Validation<br/>principles check + audit trail<br/>→ blocks / escalates on violation"]
+    G --> OUT{{"Final Decision: execute / escalate / block"}}
 ```
 
 `bullwhip_diagnose` operates separately as a **historical diagnostic** — it scans a decision log (or a loose `raw_events` log you supply) for amplification patterns, traces the amplification path, scores how complete the diagnosis is, and recommends which pipeline tool to deploy.
 
 `sc_pipeline` chains all four core tools with **automatic gating** — if any stage returns `block` or `flag`, downstream stages are skipped and the blocking reason is propagated.
 
-> \* `logic_sequence`'s consistency check is currently a **placeholder** —
+> **Note:** `logic_sequence`'s consistency check is currently a **placeholder** —
 > there is no persistent cross-call memory, so it always reports `no_history`.
 > The step-sequence check is fully functional; only the historical-consistency
 > comparison is reserved for a future memory backend. See
