@@ -2,10 +2,12 @@
  * anchor_classify — SignalAnchor MCP Tool
  *
  * Classifies input as Action / Observation / Ambiguous before execution.
- * Deterministic thresholds + LLM-assessed classification.
  *
- * The LLM calling this tool should pre-assess signal_type and confidence
- * in the tool input. This tool applies hard threshold rules on top.
+ * 100% deterministic — no LLM input required. Classification is computed
+ * entirely from heuristic pattern matching on the raw input string:
+ * hedging language, uncertainty markers, spike indicators, dangerous-action
+ * keywords, and negation adjacency. The caller passes raw input; this tool
+ * does the signal/noise separation itself.
  */
 
 import { anchorStatus, anchorShouldProceed } from "../engine/scoring.js";

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * @agdp/structured-cognition — MCP Server
+ * structured-cognition — MCP Server
  *
- * 5 middleware skills that diagnose and fix reasoning failures in AI agent systems.
- * Inspired by Supply Chain Management's Bullwhip Effect theory.
+ * 6 middleware tools that diagnose and contain reasoning amplification in
+ * AI agent systems. Inspired by Supply Chain Management's Bullwhip Effect theory.
  *
  * Output Design:
  *   Each tool returns TWO content blocks:
@@ -12,7 +12,8 @@
  *     [1] Structured JSON data   — use this to reason, fix code, or explain to user
  *
  * Usage:
- *   npx -y @agdp/structured-cognition
+ *   npx -y github:JIPRO589/Cognitive-Bullwhip-Diagnostics
+ *   (npm package name @agdp/structured-cognition is declared but not yet published)
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

@@ -53,9 +53,13 @@ export function logicSequence(input: LogicInput) {
   }
 
   // ─── Memory/consistency check ───
+  // NOTE: checkConsistency() is currently a placeholder — it always returns
+  // `no_history` because there is no persistent cross-call memory. The
+  // `diverged` branch below is therefore currently unreachable; it is kept
+  // (not deleted) as the wired-in path for a future persistent-memory backend.
   const memoryContext = checkConsistency(isolated_signal, steps);
   if (memoryContext.consistency_check === LOGIC.CONSISTENCY.DIVERGED) {
-    status = "flag"; // trigger re-evaluation
+    status = "flag"; // reserved: trigger re-evaluation once memory exists
   }
 
   // ─── Risk horizon classification ───
@@ -222,6 +226,15 @@ function deriveActionType(signal: string, steps: SequenceResults): string {
 
 // ─── Consistency Check ───
 
+// PLACEHOLDER — persistent cross-call memory is not implemented.
+//
+// In MCP context there is no state between tool calls; the calling LLM holds
+// conversation history. This function therefore ALWAYS returns `no_history`.
+// The `aligned` / `diverged` outcomes are part of the intended design but
+// require a persistent-memory backend that does not exist yet.
+//
+// Until that backend lands, treat logic_sequence's consistency check as a
+// no-op. See docs/limitations.md.
 function checkConsistency(
   signal: string,
   _steps: SequenceResults
@@ -230,9 +243,6 @@ function checkConsistency(
   prior_decision: string;
   consistency_check: "aligned" | "diverged" | "no_history";
 } {
-  // In MCP context, we don't have persistent memory across calls.
-  // The LLM maintains history. We return no_history and let the
-  // LLM compare across its context window.
   return {
     prior_pattern_found: false,
     prior_decision: "No prior pattern available in current session. Compare against conversation history for similar past decisions.",
